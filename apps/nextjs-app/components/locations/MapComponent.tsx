@@ -1,7 +1,7 @@
 "use client";
 
 import L from "leaflet";
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import type { LocationPoint } from "./UserLocationMap";
@@ -78,6 +78,21 @@ function FitBoundsComponent({ locations }: FitBoundsComponentProps) {
   return null;
 }
 
+// Component to handle map cleanup on unmount
+function MapCleanup() {
+  const map = useMap();
+
+  useEffect(() => {
+    return () => {
+      // Properly clean up the map instance on unmount
+      map.off();
+      map.remove();
+    };
+  }, [map]);
+
+  return null;
+}
+
 interface MapComponentProps {
   locations: LocationPoint[];
   showLegend?: boolean;
@@ -94,30 +109,37 @@ function formatDate(dateString: string): string {
   });
 }
 
+// Counter for generating unique stable IDs when mapKey is not provided
+let mapIdCounter = 0;
+
 export default function MapComponent({
   locations,
   showLegend = true,
   mapKey,
 }: MapComponentProps & { mapKey?: string }) {
+  // Generate a stable ID that persists across re-renders
+  const stableIdRef = useRef<string | null>(null);
+  if (stableIdRef.current === null) {
+    stableIdRef.current = `map-${++mapIdCounter}`;
+  }
+
   // Calculate center from locations
-  const center: [number, number] =
-    locations.length > 0
-      ? [
-          locations.reduce((sum, loc) => sum + loc.latitude, 0) /
-            locations.length,
-          locations.reduce((sum, loc) => sum + loc.longitude, 0) /
-            locations.length,
-        ]
-      : [20, 0];
+  const center: [number, number] = useMemo(() => {
+    if (locations.length === 0) return [20, 0];
+    return [
+      locations.reduce((sum, loc) => sum + loc.latitude, 0) / locations.length,
+      locations.reduce((sum, loc) => sum + loc.longitude, 0) / locations.length,
+    ];
+  }, [locations]);
 
   const containerId = mapKey
     ? `map-container-${mapKey}`
-    : `map-container-${Math.random().toString(36).substring(7)}`;
+    : `map-container-${stableIdRef.current}`;
 
   return (
     <div className="relative h-full w-full" id={containerId}>
       <MapContainer
-        key={mapKey || containerId}
+        key={mapKey || stableIdRef.current}
         center={center}
         zoom={2}
         className="h-full w-full"
@@ -128,6 +150,7 @@ export default function MapComponent({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBoundsComponent locations={locations} />
+        <MapCleanup />
 
         {locations.map((location, index) => (
           <Marker
@@ -224,3 +247,4 @@ export default function MapComponent({
     </div>
   );
 }
+
