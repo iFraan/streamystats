@@ -1,6 +1,9 @@
 type JellyfinUserMeResponse = {
   Id?: string;
   Name?: string;
+  Policy?: {
+    IsAdministrator?: boolean;
+  };
 };
 
 type JellyfinAuthenticateByNameResponse = {
@@ -9,12 +12,16 @@ type JellyfinAuthenticateByNameResponse = {
   User?: {
     Id?: string;
     Name?: string;
+    Policy?: {
+      IsAdministrator?: boolean;
+    };
   };
 };
 
 export type JellyfinAuthUser = {
   id: string;
   name: string | null;
+  isAdmin: boolean;
 };
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -59,11 +66,46 @@ export async function getUserFromEmbyToken(args: {
     if (!id) return { ok: false, error: "Jellyfin did not return a user id" };
     const name = asNonEmptyString(json.Name);
 
-    return { ok: true, user: { id, name } };
+    // API Keys don't return Policy in Users/Me usually, but if it's a user token it might.
+    // However, if we are here, it's a User Token.
+    const isAdmin = json.Policy?.IsAdministrator ?? false;
+
+    return { ok: true, user: { id, name, isAdmin } };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       return { ok: false, error: "Jellyfin request timed out" };
     }
+
+    // If /Users/Me failed, it might be an API Key.
+    // Try /System/Info to validate if it's a valid API Key.
+    try {
+      const sysRes = await fetch(
+        `${normalizeBaseUrl(args.serverUrl)}/System/Info`,
+        {
+          method: "GET",
+          headers: {
+            "X-Emby-Token": args.token.trim(),
+            "Content-Type": "application/json",
+          },
+          signal: AbortSignal.timeout(5000),
+        },
+      );
+
+      if (sysRes.ok) {
+        // It is a valid API Key (Admin)
+        return {
+          ok: true,
+          user: {
+            id: "system-api-key",
+            name: "System API Key",
+            isAdmin: true,
+          },
+        };
+      }
+    } catch {
+      // Ignore error from System/Info and return original error
+    }
+
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Jellyfin request failed",
@@ -107,8 +149,9 @@ export async function authenticateByName(args: {
     if (!id) return { ok: false, error: "Jellyfin did not return a user id" };
     const name = asNonEmptyString(json.User?.Name);
     const accessToken = asNonEmptyString(json.AccessToken);
+    const isAdmin = json.User?.Policy?.IsAdministrator ?? false;
 
-    return { ok: true, user: { id, name }, accessToken };
+    return { ok: true, user: { id, name, isAdmin }, accessToken };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       return { ok: false, error: "Jellyfin request timed out" };

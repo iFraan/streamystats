@@ -26,6 +26,24 @@ const JOB_NAMES = {
 
 export { JOB_NAMES as GEOLOCATION_JOB_NAMES };
 
+// In-memory fingerprint cache to avoid repeated DB reads during batch processing
+// Key: `${serverId}:${userId}`, Value: fingerprint data or null if not exists
+type CachedFingerprint = {
+  knownCountries: string[];
+  knownCities: string[];
+  knownDeviceIds: string[];
+} | null;
+
+const fingerprintCache = new Map<string, CachedFingerprint>();
+
+function getFingerprintCacheKey(serverId: number, userId: string): string {
+  return `${serverId}:${userId}`;
+}
+
+function clearFingerprintCache(): void {
+  fingerprintCache.clear();
+}
+
 /**
  * Geolocate activities that don't have location data yet.
  * Processes activities in batches for a specific server.
@@ -39,6 +57,9 @@ export async function geolocateActivitiesJob(job: {
   console.log(
     `[geolocation] action=start serverId=${serverId} batchSize=${batchSize}`
   );
+
+  // Clear fingerprint cache at start of each batch
+  clearFingerprintCache();
 
   try {
     // Find activities without location data that have IP in shortOverview
@@ -159,13 +180,34 @@ async function checkActivityAnomaly(
   activityDate: Date,
   activityName: string
 ): Promise<NewAnomalyEvent | null> {
-  // Get user's fingerprint
-  const fingerprint = await db.query.userFingerprints.findFirst({
-    where: and(
-      eq(userFingerprints.userId, userId),
-      eq(userFingerprints.serverId, serverId)
-    ),
-  });
+  const cacheKey = getFingerprintCacheKey(serverId, userId);
+  
+  // Check cache first, then fetch from DB if not cached
+  let cachedFp = fingerprintCache.get(cacheKey);
+  let fingerprint: typeof cachedFp extends undefined ? null : typeof cachedFp = null;
+  
+  if (cachedFp === undefined) {
+    // Not in cache, fetch from DB
+    const dbFingerprint = await db.query.userFingerprints.findFirst({
+      where: and(
+        eq(userFingerprints.userId, userId),
+        eq(userFingerprints.serverId, serverId)
+      ),
+    });
+    
+    if (dbFingerprint) {
+      cachedFp = {
+        knownCountries: (dbFingerprint.knownCountries as string[]) || [],
+        knownCities: (dbFingerprint.knownCities as string[]) || [],
+        knownDeviceIds: (dbFingerprint.knownDeviceIds as string[]) || [],
+      };
+    } else {
+      cachedFp = null;
+    }
+    fingerprintCache.set(cacheKey, cachedFp);
+  }
+  
+  fingerprint = cachedFp;
 
   // Get user's most recent session to check device
   const recentSession = await db
@@ -277,8 +319,7 @@ async function checkActivityAnomaly(
 
   // Check fingerprint-based anomalies
   if (fingerprint) {
-    const knownCountries = (fingerprint.knownCountries as string[]) || [];
-    const knownCities = (fingerprint.knownCities as string[]) || [];
+    const { knownCountries, knownCities, knownDeviceIds } = fingerprint;
 
     const isNewCountry =
       geo.countryCode && !knownCountries.includes(geo.countryCode);
@@ -322,7 +363,6 @@ async function checkActivityAnomaly(
     }
 
     // Check for new device
-    const knownDeviceIds = (fingerprint.knownDeviceIds as string[]) || [];
     const latestSession = recentSession[0];
     if (
       latestSession?.deviceId &&
@@ -350,9 +390,63 @@ async function checkActivityAnomaly(
         },
       });
     }
+
+    // Immediately update fingerprint with new locations/devices to prevent duplicates
+    // This ensures subsequent activities from the same location won't trigger new anomalies
+    if (anomalies.length > 0) {
+      const updatedCountries = [...knownCountries];
+      const updatedCities = [...knownCities];
+      const updatedDeviceIds = [...knownDeviceIds];
+
+      for (const anomaly of anomalies) {
+        if (anomaly.anomalyType === "new_country" && geo.countryCode) {
+          if (!updatedCountries.includes(geo.countryCode)) {
+            updatedCountries.push(geo.countryCode);
+          }
+        }
+        if (anomaly.anomalyType === "new_location" && geo.city) {
+          if (!updatedCities.includes(geo.city)) {
+            updatedCities.push(geo.city);
+          }
+        }
+        if (anomaly.anomalyType === "new_device" && anomaly.details.deviceId) {
+          if (!updatedDeviceIds.includes(anomaly.details.deviceId)) {
+            updatedDeviceIds.push(anomaly.details.deviceId);
+          }
+        }
+      }
+
+      // Update both DB and cache
+      await db
+        .update(userFingerprints)
+        .set({
+          knownCountries: updatedCountries,
+          knownCities: updatedCities,
+          knownDeviceIds: updatedDeviceIds,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(userFingerprints.userId, userId),
+            eq(userFingerprints.serverId, serverId)
+          )
+        );
+
+      // Update cache so subsequent activities in this batch use updated fingerprint
+      fingerprintCache.set(cacheKey, {
+        knownCountries: updatedCountries,
+        knownCities: updatedCities,
+        knownDeviceIds: updatedDeviceIds,
+      });
+    }
   } else if (geo.countryCode) {
-    // No fingerprint yet - create initial one
+    // No fingerprint yet - create initial one and cache it
     await createInitialFingerprint(serverId, userId, geo);
+    fingerprintCache.set(cacheKey, {
+      knownCountries: geo.countryCode ? [geo.countryCode] : [],
+      knownCities: geo.city ? [geo.city] : [],
+      knownDeviceIds: [],
+    });
   }
 
   // Insert anomalies and publish events

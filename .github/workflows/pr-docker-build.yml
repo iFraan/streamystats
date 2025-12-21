@@ -10,6 +10,24 @@ env:
   IMAGE_NAMESPACE: ${{ secrets.DOCKER_USERNAME }}
 
 jobs:
+  lint:
+    name: Lint (bun lint / Biome)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run lint
+        run: bun run lint
+
   build-and-push:
     runs-on: ubuntu-latest
     strategy:
@@ -69,7 +87,7 @@ jobs:
 
   summary:
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: [lint, build-and-push]
     if: always()
     steps:
       - name: PR Build Summary

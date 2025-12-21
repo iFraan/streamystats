@@ -3,7 +3,6 @@ import Bottleneck from "bottleneck";
 import pRetry from "p-retry";
 import { Server } from "@streamystats/database";
 import { JellyfinSession } from "./types";
-import { formatError } from "../utils/format-error";
 
 export interface JellyfinConfig {
   baseURL: string;
@@ -395,13 +394,6 @@ export class JellyfinClient {
         factor: 2,
         minTimeout: 1000,
         maxTimeout: 10000,
-        onFailedAttempt: (error) => {
-          console.warn(
-            `Request attempt ${error.attemptNumber} failed (${formatError(
-              error
-            )}). ${error.retriesLeft} retries left.`
-          );
-        },
       }
     );
   }

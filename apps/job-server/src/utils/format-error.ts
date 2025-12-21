@@ -9,6 +9,18 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function unwrapNestedError(err: unknown): unknown {
+  if (!isObject(err)) return err;
+
+  // p-retry commonly wraps the original error in { error, attemptNumber, retriesLeft }
+  if ("error" in err) return (err as Record<string, unknown>).error;
+
+  // Standard Error cause chaining
+  if ("cause" in err) return (err as Record<string, unknown>).cause;
+
+  return err;
+}
+
 function isSensitiveKey(key: string): boolean {
   return /^(authorization|cookie|set-cookie|password|pass|pwd|token|api[_-]?key|secret)$/i.test(
     key
@@ -83,25 +95,29 @@ function toAbsoluteUrl(baseURL?: string, url?: string): string | undefined {
 
 export function formatError(err: unknown): string {
   const retryMeta = readRetryMeta(err);
+  const rootErr = unwrapNestedError(err);
 
-  if (axios.isAxiosError(err)) {
-    const status = err.response?.status;
-    const code = err.code ?? undefined;
-    const method = err.config?.method?.toUpperCase();
-    const fullUrlNoQuery = toAbsoluteUrl(err.config?.baseURL, err.config?.url);
+  if (axios.isAxiosError(rootErr)) {
+    const status = rootErr.response?.status;
+    const code = rootErr.code ?? undefined;
+    const method = rootErr.config?.method?.toUpperCase();
+    const fullUrlNoQuery = toAbsoluteUrl(
+      rootErr.config?.baseURL,
+      rootErr.config?.url
+    );
     const fullUrlWithQuery = (() => {
       try {
         // Uses axios' own URL building, including params serialization behavior.
-        return err.config ? axios.getUri(err.config) : undefined;
+        return rootErr.config ? axios.getUri(rootErr.config) : undefined;
       } catch {
         return undefined;
       }
     })();
 
     const paramsForLog =
-      err.config?.params !== undefined
+      rootErr.config?.params !== undefined
         ? stringifyTruncated(
-            redactSensitive(err.config.params, { depth: 0, maxDepth: 6 }),
+            redactSensitive(rootErr.config.params, { depth: 0, maxDepth: 6 }),
             2000
           )
         : undefined;
@@ -125,11 +141,11 @@ export function formatError(err: unknown): string {
     ]);
 
     return meta.length > 0
-      ? `AxiosError(${meta}): ${err.message}`
-      : `AxiosError: ${err.message}`;
+      ? `AxiosError(${meta}): ${rootErr.message}`
+      : `AxiosError: ${rootErr.message}`;
   }
 
-  if (err instanceof Error) {
+  if (rootErr instanceof Error) {
     const meta = joinDefined([
       typeof retryMeta.attemptNumber === "number"
         ? `attempt=${retryMeta.attemptNumber}`
@@ -140,13 +156,13 @@ export function formatError(err: unknown): string {
     ]);
 
     return meta.length > 0
-      ? `${err.name}(${meta}): ${err.message}`
-      : `${err.name}: ${err.message}`;
+      ? `${rootErr.name}(${meta}): ${rootErr.message}`
+      : `${rootErr.name}: ${rootErr.message}`;
   }
 
   try {
-    return typeof err === "string" ? err : JSON.stringify(err);
+    return typeof rootErr === "string" ? rootErr : JSON.stringify(rootErr);
   } catch {
-    return String(err);
+    return String(rootErr);
   }
 }

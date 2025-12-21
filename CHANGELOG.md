@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.14.0](https://github.com/fredrikburmester/streamystats/compare/v2.13.0...v2.14.0) (2025-12-21)
+
+
+### Features
+
+* **job-server:** make cron schedules configurable via env vars ([3edef46](https://github.com/fredrikburmester/streamystats/commit/3edef46f4f164bb36c4cbefc8ab8a48bee2d0750))
+
+
+### Bug Fixes
+
+* aio container build ([17fcc73](https://github.com/fredrikburmester/streamystats/commit/17fcc7318237f31700f6efb93ff58d6ef08e25ea))
+* build issue ([ff0ced6](https://github.com/fredrikburmester/streamystats/commit/ff0ced6ffb7f8ceef054d4f4e107e79f2bfed0a6))
+* copy geo files to expected location ([bbdf17d](https://github.com/fredrikburmester/streamystats/commit/bbdf17d1b32b1d33cce73d7e99944de421de912d))
+* duplicate fingerprint cleanup and improvement ([f975ab1](https://github.com/fredrikburmester/streamystats/commit/f975ab180aae7979344c36bab340a90a4eec8d13))
+* for aio container ([55ec986](https://github.com/fredrikburmester/streamystats/commit/55ec986df09ce9acbd0fe2c4906f90103bac20f6))
+* idempotent migration ([3465228](https://github.com/fredrikburmester/streamystats/commit/346522826c50f96f097f56c0b8edc43bb11022bc))
+* **jellyfin:** ensure isFolder defaults to false ([4fdeaea](https://github.com/fredrikburmester/streamystats/commit/4fdeaea22497ab86a926ca0f5b6a60186b556a32))
+* ollama connection issue ([e40c11b](https://github.com/fredrikburmester/streamystats/commit/e40c11bcb32f6f825aa14b45026c4e70bd9006b4))
+* use SQL[] universally and remove any restore Server ([4bdf766](https://github.com/fredrikburmester/streamystats/commit/4bdf766415b78be0c048286f7621e688b7304281))
+* wrong video type in sections ([ea25a97](https://github.com/fredrikburmester/streamystats/commit/ea25a970bd1ee129bde3f36f70174accc656d694))
+
 ## [2.13.0](https://github.com/fredrikburmester/streamystats/compare/v2.12.0...v2.13.0) (2025-12-18)
 
 

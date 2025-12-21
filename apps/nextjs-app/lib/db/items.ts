@@ -9,18 +9,19 @@ import {
   users,
 } from "@streamystats/database";
 import {
+  type SQL,
   and,
   asc,
   count,
   desc,
   eq,
-  gte,
   inArray,
   isNotNull,
-  lte,
+  notInArray,
   sql,
   sum,
 } from "drizzle-orm";
+import { getStatisticsExclusions } from "./exclusions";
 
 export interface ItemStats {
   totalViews: number;
@@ -339,9 +340,11 @@ export const getItemCompletionRate = async ({
 export const getItemUserStats = async ({
   itemId,
   userId,
+  serverId,
 }: {
   itemId: string;
   userId?: string;
+  serverId?: number;
 }): Promise<ItemUserStats[]> => {
   // Get the item to check if it's a TV show
   const item = await db.query.items.findFirst({
@@ -351,6 +354,11 @@ export const getItemUserStats = async ({
   if (!item) {
     return [];
   }
+
+  // Get exclusion settings if serverId provided
+  const exclusions = serverId
+    ? await getStatisticsExclusions(serverId)
+    : { userExclusion: undefined };
 
   let itemIdsToQuery: string[] = [itemId];
 
@@ -364,14 +372,20 @@ export const getItemUserStats = async ({
     }
   }
 
-  // Build where condition based on whether userId is provided
-  const whereCondition = userId
-    ? and(
-        inArray(sessions.itemId, itemIdsToQuery),
-        eq(sessions.userId, userId),
-        isNotNull(sessions.userId),
-      )
-    : and(inArray(sessions.itemId, itemIdsToQuery), isNotNull(sessions.userId));
+  // Build where conditions
+  const whereConditions: SQL[] = [
+    inArray(sessions.itemId, itemIdsToQuery),
+    isNotNull(sessions.userId),
+  ];
+
+  if (userId) {
+    whereConditions.push(eq(sessions.userId, userId));
+  }
+
+  // Add user exclusion filter
+  if (exclusions.userExclusion) {
+    whereConditions.push(exclusions.userExclusion);
+  }
 
   const userStats = await db
     .select({
@@ -388,7 +402,7 @@ export const getItemUserStats = async ({
     })
     .from(sessions)
     .leftJoin(users, eq(sessions.userId, users.id))
-    .where(whereCondition)
+    .where(and(...whereConditions))
     .groupBy(
       sessions.userId,
       users.name,

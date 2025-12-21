@@ -4,10 +4,10 @@ import {
   sessions,
   users,
   type NewSession,
+  type Server,
 } from "@streamystats/database";
-import type { Server } from "@streamystats/database/schema";
 import { JellyfinClient } from "../jellyfin/client";
-import type {
+import {
   JellyfinSession,
   TrackedSession,
   ActiveSessionResponse,
@@ -15,6 +15,7 @@ import type {
 import { v4 as uuidv4 } from "uuid";
 import { eq } from "drizzle-orm";
 import { formatError } from "../utils/format-error";
+import { shouldLog } from "../utils/log-throttle";
 
 function log(
   prefix: string,
@@ -26,7 +27,7 @@ function log(
       parts.push(`${key}=${value}`);
     }
   }
-  console.log(parts.join(" "));
+  process.stdout.write(`${parts.join(" ")}\n`);
 }
 
 interface SessionPollerConfig {
@@ -44,10 +45,16 @@ class SessionPoller {
   private trackedSessions: Map<string, Map<string, TrackedSession>> = new Map();
   private intervalId: NodeJS.Timeout | null = null;
   private config: Required<SessionPollerConfig>;
+  private pollInProgress = false;
+  private serverBackoff: Map<number, { failures: number; nextAllowedAtMs: number }> =
+    new Map();
 
   constructor(config: SessionPollerConfig = {}) {
+    const envIntervalMs = Bun.env.SESSION_POLL_INTERVAL_MS
+      ? Number.parseInt(Bun.env.SESSION_POLL_INTERVAL_MS, 10)
+      : undefined;
     this.config = {
-      intervalMs: config.intervalMs || 5000, // 5 seconds as requested
+      intervalMs: config.intervalMs || envIntervalMs || 5000, // 5 seconds default
       enabled: config.enabled ?? true,
     };
   }
@@ -71,10 +78,14 @@ class SessionPoller {
 
     // Schedule recurring polls
     this.intervalId = setInterval(async () => {
+      if (this.pollInProgress) return;
+      this.pollInProgress = true;
       try {
         await this.pollSessions();
       } catch (error) {
         console.error(`Error during session polling: ${formatError(error)}`);
+      } finally {
+        this.pollInProgress = false;
       }
     }, this.config.intervalMs);
 
@@ -132,6 +143,7 @@ class SessionPoller {
       const activeServers = await this.listServers();
 
       for (const server of activeServers) {
+        if (!this.shouldPollServer(server.id)) continue;
         await this.pollServer(server);
       }
     } catch (error) {
@@ -141,10 +153,39 @@ class SessionPoller {
     }
   }
 
+  private shouldPollServer(serverId: number): boolean {
+    const entry = this.serverBackoff.get(serverId);
+    if (!entry) return true;
+    return Date.now() >= entry.nextAllowedAtMs;
+  }
+
+  private clearBackoff(serverId: number): void {
+    this.serverBackoff.delete(serverId);
+  }
+
+  private recordFailure(serverId: number): number {
+    const prev = this.serverBackoff.get(serverId);
+    const failures = (prev?.failures ?? 0) + 1;
+
+    const initialBackoffMs = 15_000;
+    const maxBackoffMs = 5 * 60_000;
+    const backoffMs = Math.min(
+      maxBackoffMs,
+      initialBackoffMs * 2 ** (failures - 1)
+    );
+
+    this.serverBackoff.set(serverId, {
+      failures,
+      nextAllowedAtMs: Date.now() + backoffMs,
+    });
+
+    return backoffMs;
+  }
+
   /**
    * List all active servers
    */
-  private async listServers() {
+  private async listServers(): Promise<Server[]> {
     return await db.select().from(servers);
   }
 
@@ -152,16 +193,29 @@ class SessionPoller {
    * Poll sessions for a specific server
    */
   private async pollServer(server: Server): Promise<void> {
+    const hadBackoff = this.serverBackoff.has(server.id);
     try {
       const client = JellyfinClient.fromServer(server);
       const currentSessions = await client.getSessions();
       await this.processSessions(server, currentSessions);
+
+      if (hadBackoff) {
+        this.clearBackoff(server.id);
+        const key = `session-poller:recovered:${server.id}`;
+        if (shouldLog(key, 60_000)) {
+          log("session-poller", { action: "recovered", serverId: server.id });
+        }
+      }
     } catch (error) {
-      console.error(
-        `[session-poller] action=fetch-error serverId=${
-          server.id
-        } error=${formatError(error)}`
-      );
+      const backoffMs = this.recordFailure(server.id);
+      const signature = formatError(error);
+      const key = `session-poller:fetch-error:${server.id}`;
+
+      if (shouldLog(key, Math.max(60_000, backoffMs))) {
+        console.error(
+          `[session-poller] action=fetch-error serverId=${server.id} backoffMs=${backoffMs} error=${signature}`
+        );
+      }
     }
   }
 

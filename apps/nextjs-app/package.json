@@ -12,7 +12,7 @@
     "migrate:up": "node-pg-migrate -T ts --tsconfig ./tsconfig.json up",
     "migrate:down": "node-pg-migrate -T ts --tsconfig ./tsconfig.json down",
     "lint": "biome check .",
-    "lint:fix": "biome check --write .",
+    "lint:fix": "biome check --write --unsafe .",
     "format": "biome format .",
     "format:fix": "biome format --write ."
   },

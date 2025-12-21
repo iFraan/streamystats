@@ -71,8 +71,8 @@ export const MostWatchedItems: React.FC<Props> = ({ data, server }) => {
     type: "Movie" | "Episode" | "Series",
     title: string,
   ) => (
-    <div>
-      <h2 className="text-xl font-bold mb-4">Most Watched {title}</h2>
+    <div className="min-w-0">
+      <h2 className="text-xl font-bold mb-4 truncate">Most Watched {title}</h2>
       {items.length === 0 && (
         <p className="text-neutral-500">
           No {title.toLowerCase()} watched yet.
@@ -83,7 +83,7 @@ export const MostWatchedItems: React.FC<Props> = ({ data, server }) => {
           <Link
             href={`/servers/${server.id}/library/${item.id}`}
             key={`${type}-${item.id || item.id || index}`}
-            className="flex flex-row items-center px-2 py-2 min-h-[120px] rounded-lg border border-border bg-card shadow-sm duration-200 hover:bg-accent/60 group"
+            className="flex flex-row items-center px-2 py-2 rounded-lg border border-border bg-card shadow-sm duration-200 hover:bg-accent/60 group"
             style={{ textDecoration: "none" }}
           >
             <div className="rounded-lg overflow-hidden w-16 transition-transform duration-200">

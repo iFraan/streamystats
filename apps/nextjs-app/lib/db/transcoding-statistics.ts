@@ -1,7 +1,16 @@
 // Transcoding statistics types and functions
 import { db, sessions } from "@streamystats/database";
 import type { Session } from "@streamystats/database";
-import { and, eq, gte, isNotNull, lte } from "drizzle-orm";
+import {
+  type SQL,
+  and,
+  eq,
+  gte,
+  isNotNull,
+  lte,
+  notInArray,
+} from "drizzle-orm";
+import { getExclusionSettings } from "./exclusions";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -86,8 +95,11 @@ export async function getTranscodingStatistics(
   endDate?: string,
   userId?: string,
 ): Promise<TranscodingStatisticsResponse> {
+  // Get exclusion settings
+  const { excludedUserIds } = await getExclusionSettings(serverId);
+
   // Get all sessions with transcoding data for the specified date range
-  const whereConditions = [eq(sessions.serverId, serverId)];
+  const whereConditions: SQL[] = [eq(sessions.serverId, serverId)];
 
   if (startDate) {
     whereConditions.push(gte(sessions.startTime, new Date(startDate)));
@@ -97,6 +109,11 @@ export async function getTranscodingStatistics(
   }
   if (userId) {
     whereConditions.push(eq(sessions.userId, userId));
+  }
+
+  // Add exclusion filters
+  if (excludedUserIds.length > 0) {
+    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
   }
 
   const sessionData = await db
@@ -367,7 +384,10 @@ export async function getBitrateDistribution(
   startDate?: string,
   endDate?: string,
 ): Promise<NumericStat[]> {
-  const whereConditions = [
+  // Get exclusion settings
+  const { excludedUserIds } = await getExclusionSettings(serverId);
+
+  const whereConditions: SQL[] = [
     eq(sessions.serverId, serverId),
     isNotNull(sessions.videoBitRate),
   ];
@@ -377,6 +397,11 @@ export async function getBitrateDistribution(
   }
   if (endDate) {
     whereConditions.push(lte(sessions.startTime, new Date(endDate)));
+  }
+
+  // Add exclusion filters
+  if (excludedUserIds.length > 0) {
+    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
   }
 
   const sessionData = (await db
@@ -443,13 +468,21 @@ export async function getCodecDistribution(
   startDate?: string,
   endDate?: string,
 ): Promise<{ [codec: string]: number }> {
-  const whereConditions = [eq(sessions.serverId, serverId)];
+  // Get exclusion settings
+  const { excludedUserIds } = await getExclusionSettings(serverId);
+
+  const whereConditions: SQL[] = [eq(sessions.serverId, serverId)];
 
   if (startDate) {
     whereConditions.push(gte(sessions.startTime, new Date(startDate)));
   }
   if (endDate) {
     whereConditions.push(lte(sessions.startTime, new Date(endDate)));
+  }
+
+  // Add exclusion filters
+  if (excludedUserIds.length > 0) {
+    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
   }
 
   const sessionData = await db
@@ -498,7 +531,10 @@ export async function getResolutionDistribution(
   startDate?: string,
   endDate?: string,
 ): Promise<{ [resolution: string]: number }> {
-  const whereConditions = [
+  // Get exclusion settings
+  const { excludedUserIds } = await getExclusionSettings(serverId);
+
+  const whereConditions: SQL[] = [
     eq(sessions.serverId, serverId),
     isNotNull(sessions.transcodingWidth),
     isNotNull(sessions.transcodingHeight),
@@ -509,6 +545,11 @@ export async function getResolutionDistribution(
   }
   if (endDate) {
     whereConditions.push(lte(sessions.startTime, new Date(endDate)));
+  }
+
+  // Add exclusion filters
+  if (excludedUserIds.length > 0) {
+    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
   }
 
   const sessionData = await db

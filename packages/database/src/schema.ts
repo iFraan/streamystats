@@ -129,6 +129,11 @@ export const servers = pgTable(
     // Holiday/seasonal recommendations settings
     disabledHolidays: text("disabled_holidays").array().default([]),
 
+    // Statistics exclusion settings
+    // Users and libraries in these arrays will be hidden from all statistics
+    excludedUserIds: text("excluded_user_ids").array().default([]),
+    excludedLibraryIds: text("excluded_library_ids").array().default([]),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

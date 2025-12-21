@@ -8,6 +8,7 @@ import {
 } from "../sync-metrics";
 import pMap from "p-map";
 import { formatSyncLogLine } from "./sync-log";
+import { formatError } from "../../utils/format-error";
 
 export interface LibrarySyncOptions {
   batchSize?: number;
@@ -77,8 +78,9 @@ export async function syncLibraries(
             metrics.incrementLibrariesProcessed();
           } catch (error) {
             console.error(
-              `Error processing library ${jellyfinLibrary.Id}:`,
-              error
+              `[libraries-sync] server=${server.name} libraryId=${jellyfinLibrary.Id} status=process-error error=${formatError(
+                error
+              )}`
             );
             metrics.incrementErrors();
             errors.push(
@@ -134,7 +136,11 @@ export async function syncLibraries(
 
     return createSyncResult("success", data, finalMetrics);
   } catch (error) {
-    console.error(`Library sync failed for server ${server.name}:`, error);
+    console.error(
+      `[libraries-sync] server=${server.name} status=failed error=${formatError(
+        error
+      )}`
+    );
     const finalMetrics = metrics.finish();
     const errorData: LibrarySyncData = {
       librariesProcessed: finalMetrics.librariesProcessed,

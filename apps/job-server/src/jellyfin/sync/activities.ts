@@ -15,6 +15,7 @@ import {
 import pMap from "p-map";
 import { sleep } from "../../utils/sleep";
 import { formatSyncLogLine } from "./sync-log";
+import { formatError } from "../../utils/format-error";
 
 export interface ActivitySyncOptions {
   pageSize?: number;
@@ -87,8 +88,9 @@ export async function syncActivities(
               await processActivity(jellyfinActivity, server.id, metrics);
             } catch (error) {
               console.error(
-                `[activities-sync] server=${server.name} activityId=${jellyfinActivity.Id} status=error`,
-                error
+                `[activities-sync] server=${server.name} activityId=${jellyfinActivity.Id} status=error error=${formatError(
+                  error
+                )}`
               );
               metrics.incrementErrors();
               errors.push(
@@ -134,8 +136,7 @@ export async function syncActivities(
         console.error(
           `[activities-sync] server=${server.name} page=${
             pagesFetched + 1
-          } status=fetch-error`,
-          error
+          } status=fetch-error error=${formatError(error)}`
         );
         metrics.incrementErrors();
         errors.push(
@@ -315,8 +316,9 @@ export async function syncRecentActivities(
                     activitiesProcessed++;
                   } catch (error) {
                     console.error(
-                      `[recent-activities-sync] server=${server.name} activityId=${jellyfinActivity.Id} status=error`,
-                      error
+                      `[recent-activities-sync] server=${server.name} activityId=${jellyfinActivity.Id} status=error error=${formatError(
+                        error
+                      )}`
                     );
                     metrics.incrementErrors();
                     errors.push(
@@ -362,8 +364,9 @@ export async function syncRecentActivities(
               activitiesProcessed++;
             } catch (error) {
               console.error(
-                `[recent-activities-sync] server=${server.name} activityId=${jellyfinActivity.Id} status=error`,
-                error
+                `[recent-activities-sync] server=${server.name} activityId=${jellyfinActivity.Id} status=error error=${formatError(
+                  error
+                )}`
               );
               metrics.incrementErrors();
               errors.push(
@@ -420,8 +423,7 @@ export async function syncRecentActivities(
         console.error(
           `[recent-activities-sync] server=${server.name} page=${
             pagesFetched + 1
-          } status=fetch-error`,
-          error
+          } status=fetch-error error=${formatError(error)}`
         );
         metrics.incrementErrors();
         errors.push(
@@ -542,8 +544,9 @@ async function processActivity(
       }
     } catch (error) {
       console.warn(
-        `[activities-sync] activityId=${jellyfinActivity.Id} status=user-check-error userId=null`,
-        error
+        `[activities-sync] activityId=${jellyfinActivity.Id} status=user-check-error userId=null error=${formatError(
+          error
+        )}`
       );
     }
   }

@@ -8,6 +8,7 @@ import {
 } from "../sync-metrics";
 import pMap from "p-map";
 import { formatSyncLogLine } from "./sync-log";
+import { formatError } from "../../utils/format-error";
 
 export interface UserSyncOptions {
   batchSize?: number;
@@ -66,7 +67,11 @@ export async function syncUsers(
             }
             metrics.incrementUsersProcessed();
           } catch (error) {
-            console.error(`Error processing user ${jellyfinUser.Id}:`, error);
+            console.error(
+              `[users-sync] server=${server.name} userId=${jellyfinUser.Id} status=process-error error=${formatError(
+                error
+              )}`
+            );
             metrics.incrementErrors();
             errors.push(
               `User ${jellyfinUser.Id}: ${
@@ -121,7 +126,11 @@ export async function syncUsers(
 
     return createSyncResult("success", data, finalMetrics);
   } catch (error) {
-    console.error(`User sync failed for server ${server.name}:`, error);
+    console.error(
+      `[users-sync] server=${server.name} status=failed error=${formatError(
+        error
+      )}`
+    );
     const finalMetrics = metrics.finish();
     const errorData: UserSyncData = {
       usersProcessed: finalMetrics.usersProcessed,

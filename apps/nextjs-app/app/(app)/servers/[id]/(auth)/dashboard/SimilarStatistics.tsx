@@ -2,6 +2,7 @@
 
 import {
   type RecommendationItem,
+  getSimilarStatistics,
   hideRecommendation,
 } from "@/lib/db/similar-statistics";
 import type { Server } from "@streamystats/database";
@@ -28,6 +29,10 @@ export const SimilarMovieStatistics = ({ data, server }: Props) => {
     return `${minutes}m`;
   };
 
+  const fetchNextPage = async (offset: number) => {
+    return getSimilarStatistics(server.id, undefined, 20, offset);
+  };
+
   return (
     <RecommendationsSection
       title="Recommended Movies for You"
@@ -38,6 +43,7 @@ export const SimilarMovieStatistics = ({ data, server }: Props) => {
       onHideRecommendation={hideRecommendation}
       formatRuntime={formatRuntime}
       emptyMessage="No recommendations available yet"
+      fetchNextPage={fetchNextPage}
     />
   );
 };

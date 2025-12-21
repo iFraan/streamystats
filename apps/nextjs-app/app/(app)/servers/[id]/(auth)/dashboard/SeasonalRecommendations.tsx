@@ -3,7 +3,10 @@
 import { Poster } from "@/app/(app)/servers/[id]/(auth)/dashboard/Poster";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import type { SeasonalRecommendationResult } from "@/lib/db/seasonal-recommendations";
+import {
+  type SeasonalRecommendationResult,
+  getSeasonalRecommendations,
+} from "@/lib/db/seasonal-recommendations";
 import type { Holiday } from "@/lib/holidays";
 import type { Server } from "@streamystats/database";
 import {
@@ -31,6 +34,7 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 // Map icon names to Lucide components
 const iconMap: Record<string, LucideIcon> = {
@@ -215,9 +219,14 @@ export function SeasonalRecommendations({
   data,
   server,
 }: SeasonalRecommendationsProps) {
-  const { holiday, items } = data;
+  const { holiday, items: initialItems } = data;
   const theme = getHolidayTheme(holiday.id);
   const Icon = getHolidayIcon(holiday.icon);
+
+  const [items, setItems] = useState(initialItems);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const formatRuntime = (ticks: number | null) => {
     if (!ticks) return null;
@@ -230,6 +239,49 @@ export function SeasonalRecommendations({
     }
     return `${minutes}m`;
   };
+
+  useEffect(() => {
+    setItems(initialItems);
+    setHasMore(true);
+  }, [initialItems]);
+
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting && !isLoading && hasMore) {
+          setIsLoading(true);
+          getSeasonalRecommendations(server.id, 15, items.length)
+            .then((result) => {
+              if (!result || result.items.length === 0) {
+                setHasMore(false);
+              } else {
+                setItems((prev) => [...prev, ...result.items]);
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching next page:", error);
+            })
+            .finally(() => {
+              setIsLoading(false);
+            });
+        }
+      },
+      {
+        root: null,
+        rootMargin: "100px",
+        threshold: 0.1,
+      },
+    );
+
+    observer.observe(sentinelRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [server.id, items.length, isLoading, hasMore]);
 
   if (!items || items.length === 0) {
     return null;
@@ -274,7 +326,7 @@ export function SeasonalRecommendations({
                       key={item.id || `${item.name}-${item.productionYear}`}
                       className="flex-shrink-0 group relative"
                     >
-                      <div className="relative w-[190px] sm:w-[230px] py-2">
+                      <div className="relative w-[152px] sm:w-[184px] py-2">
                         <Link
                           href={`/servers/${server.id}/library/${item.id}`}
                           className="flex flex-col overflow-hidden border border-border bg-card rounded-lg hover:border-primary/50 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] hover:z-10 relative"
@@ -284,10 +336,10 @@ export function SeasonalRecommendations({
                             <Poster
                               item={item}
                               server={server}
-                              width={230}
-                              height={300}
+                              width={184}
+                              height={240}
                               preferredImageType="Primary"
-                              className="w-full h-[260px] sm:h-[320px] rounded-t-lg"
+                              className="w-full h-[208px] sm:h-[256px] rounded-t-lg"
                             />
                             <div className="absolute top-2 left-2 z-20">
                               <Badge
@@ -321,34 +373,13 @@ export function SeasonalRecommendations({
                                 )}
                               </p>
                             </div>
-
-                            {matchReason && (
-                              <p className="text-[10px] text-muted-foreground/80 truncate">
-                                {matchReason}
-                              </p>
-                            )}
-
-                            {item.genres && item.genres.length > 0 && (
-                              <div className="flex flex-wrap gap-1 pt-0.5">
-                                {item.genres
-                                  .slice(0, 2)
-                                  .map((genre: string) => (
-                                    <Badge
-                                      key={genre}
-                                      variant="secondary"
-                                      className="text-[10px] px-1.5 py-0"
-                                    >
-                                      {genre}
-                                    </Badge>
-                                  ))}
-                              </div>
-                            )}
                           </div>
                         </Link>
                       </div>
                     </div>
                   );
                 })}
+                <div ref={sentinelRef} className="flex-shrink-0 w-4" />
               </div>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>

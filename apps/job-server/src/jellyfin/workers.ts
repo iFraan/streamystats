@@ -14,6 +14,7 @@ import { syncPeopleForServer } from "./sync/people";
 import { getJobQueue } from "../jobs/queue";
 import { logJobResult } from "../jobs/job-logger";
 import { publishJobEvent, nowIsoMicroUtc } from "../events/job-events";
+import { formatError } from "../utils/format-error";
 
 export interface JellyfinSyncJobData {
   serverId: number;
@@ -148,8 +149,9 @@ export async function jellyfinSyncWorker(job: {
         );
       } catch (error) {
         console.error(
-          `Failed to enqueue people sync for server ${serverId}:`,
-          error
+          `Failed to enqueue people sync for server ${serverId}: ${formatError(
+            error
+          )}`
         );
       }
     }
@@ -164,8 +166,9 @@ export async function jellyfinSyncWorker(job: {
     };
   } catch (error) {
     console.error(
-      `Jellyfin ${syncType} sync failed for server ID ${serverId}:`,
-      error
+      `Jellyfin ${syncType} sync failed for server ID ${serverId}: ${formatError(
+        error
+      )}`
     );
 
     const errorMessage =

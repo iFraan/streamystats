@@ -20,7 +20,7 @@ export async function updateDisabledHolidaysAction(
 
     // Revalidate the dashboard to reflect changes
     revalidatePath(`/servers/${serverId}/dashboard`);
-    revalidatePath(`/servers/${serverId}/settings/general`);
+    revalidatePath(`/servers/${serverId}/settings/seasonal-recommendations`);
 
     return {
       success: true,

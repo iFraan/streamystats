@@ -20,6 +20,7 @@ import {
 } from "drizzle-orm";
 import { cosineDistance } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
+import { getExclusionSettings } from "./exclusions";
 import { getMe } from "./users";
 
 const enableDebug = false;
@@ -125,10 +126,12 @@ const stripEmbedding = (
   return card;
 };
 
+const RECOMMENDATION_POOL_SIZE = 500;
+
 async function getSimilarSeriesCached(
   serverIdNum: number,
   userId: string,
-  limit: number,
+  poolSize: number,
 ): Promise<SeriesRecommendationItem[]> {
   "use cache";
   cacheLife("hours");
@@ -139,7 +142,7 @@ async function getSimilarSeriesCached(
 
   try {
     debugLog(
-      `\n🚀 Starting series recommendation process for server ${serverIdNum}, user ${userId}, limit ${limit}`,
+      `\n🚀 Starting series recommendation process for server ${serverIdNum}, user ${userId}, pool size ${poolSize}`,
     );
 
     let recommendations: SeriesRecommendationItem[] = [];
@@ -148,14 +151,14 @@ async function getSimilarSeriesCached(
     recommendations = await getUserSpecificSeriesRecommendations(
       serverIdNum,
       userId,
-      limit,
+      poolSize,
     );
     debugLog(
       `✅ Got ${recommendations.length} user-specific series recommendations`,
     );
 
-    if (recommendations.length < limit) {
-      const remainingLimit = limit - recommendations.length;
+    if (recommendations.length < poolSize) {
+      const remainingLimit = poolSize - recommendations.length;
       debugLog(
         `\n🔥 Need ${remainingLimit} more series recommendations, getting popular series...`,
       );
@@ -184,6 +187,7 @@ export async function getSimilarSeries(
   serverId: string | number,
   userId?: string,
   limit = 20,
+  offset = 0,
 ): Promise<SeriesRecommendationItem[]> {
   const serverIdNum = Number(serverId);
 
@@ -199,7 +203,13 @@ export async function getSimilarSeries(
     }
   }
 
-  return getSimilarSeriesCached(serverIdNum, targetUserId, limit);
+  const allRecommendations = await getSimilarSeriesCached(
+    serverIdNum,
+    targetUserId,
+    RECOMMENDATION_POOL_SIZE,
+  );
+
+  return allRecommendations.slice(offset, offset + limit);
 }
 
 export const revalidateSeriesRecommendations = async (
@@ -415,6 +425,7 @@ async function getUserSpecificSeriesRecommendations(
       watchedSeries.embedding,
     )})`;
 
+    // Get a large pool of similar series with low threshold, sorted by similarity
     const similarSeries = await db
       .select({
         item: itemCardSelect,
@@ -434,7 +445,7 @@ async function getUserSpecificSeriesRecommendations(
         ),
       )
       .orderBy(desc(similarity))
-      .limit(20);
+      .limit(200); // Get a large pool for each base series
 
     debugLog(`  Found ${similarSeries.length} similar series (top 5):`);
     similarSeries.slice(0, 5).forEach((result, index) => {
@@ -445,14 +456,13 @@ async function getUserSpecificSeriesRecommendations(
       );
     });
 
-    // Filter for good similarity scores
+    // Filter with low threshold to ensure we have enough candidates
+    // Results are already sorted by similarity, so best matches come first
     const qualifiedSimilarSeries = similarSeries.filter(
-      (result) => Number(result.similarity) > 0.45,
+      (result) => Number(result.similarity) > 0.1,
     );
 
-    debugLog(
-      `  ${qualifiedSimilarSeries.length} series with similarity > 0.45`,
-    );
+    debugLog(`  ${qualifiedSimilarSeries.length} series with similarity > 0.1`);
 
     // Add similarities to candidate series
     for (const result of qualifiedSimilarSeries) {
@@ -513,6 +523,10 @@ async function getPopularSeriesRecommendations(
       excludeUserId || "none"
     }`,
   );
+
+  // Get exclusion settings
+  const { excludedUserIds, excludedLibraryIds } =
+    await getExclusionSettings(serverId);
 
   // Get series that are popular (most episodes watched) but exclude series already watched by the current user
   let watchedSeriesIds: string[] = [];
@@ -579,6 +593,14 @@ async function getPopularSeriesRecommendations(
         // Exclude user's hidden series if we have a user
         hiddenItemIds.length > 0
           ? notInArray(items.id, hiddenItemIds)
+          : sql`true`,
+        // Exclude series from excluded libraries
+        excludedLibraryIds.length > 0
+          ? notInArray(items.libraryId, excludedLibraryIds)
+          : sql`true`,
+        // Exclude sessions from excluded users in the count
+        excludedUserIds.length > 0
+          ? notInArray(sessions.userId, excludedUserIds)
           : sql`true`,
       ),
     )

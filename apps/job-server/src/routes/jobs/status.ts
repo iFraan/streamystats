@@ -97,10 +97,10 @@ app.get("/servers/:serverId/status", async (c) => {
             name,
             id,
             state,
-            createdon,
-            startedon,
-            startafter,
-            completedon,
+            created_on,
+            started_on,
+            start_after,
+            completed_on,
             output
           from pgboss.job
           where
@@ -120,30 +120,30 @@ app.get("/servers/:serverId/status", async (c) => {
             name,
             id as latest_id,
             state as latest_state,
-            createdon as latest_createdon,
-            completedon as latest_completedon,
+            created_on as latest_created_on,
+            completed_on as latest_completed_on,
             output as latest_output
           from base
-          order by name, createdon desc
+          order by name, created_on desc
         ),
         active as (
           select distinct on (name)
             name,
             id as active_id,
-            startedon as active_startedon
+            started_on as active_started_on
           from base
           where state = 'active'
-          order by name, startedon desc
+          order by name, started_on desc
         ),
         queued as (
           select distinct on (name)
             name,
             id as queued_id,
-            createdon as queued_createdon,
-            startafter as queued_startafter
+            created_on as queued_created_on,
+            start_after as queued_start_after
           from base
           where state in ('created', 'retry')
-          order by name, createdon desc
+          order by name, created_on desc
         )
         select
           latest.name,
@@ -151,14 +151,14 @@ app.get("/servers/:serverId/status", async (c) => {
           flags.has_queued,
           latest.latest_state,
           latest.latest_id,
-          latest.latest_createdon,
-          latest.latest_completedon,
+          latest.latest_created_on,
+          latest.latest_completed_on,
           latest.latest_output,
           active.active_id,
-          active.active_startedon,
+          active.active_started_on,
           queued.queued_id,
-          queued.queued_createdon,
-          queued.queued_startafter
+          queued.queued_created_on,
+          queued.queued_start_after
         from latest
         join flags using (name)
         left join active using (name)
@@ -177,14 +177,14 @@ app.get("/servers/:serverId/status", async (c) => {
         | "cancelled"
         | "failed";
       latest_id: string;
-      latest_createdon: Date;
-      latest_completedon: Date | null;
+      latest_created_on: Date;
+      latest_completed_on: Date | null;
       latest_output: unknown;
       active_id: string | null;
-      active_startedon: Date | null;
+      active_started_on: Date | null;
       queued_id: string | null;
-      queued_createdon: Date | null;
-      queued_startafter: Date | null;
+      queued_created_on: Date | null;
+      queued_start_after: Date | null;
     }>;
 
     const byName = new Map(rows.map((r) => [r.name, r]));
@@ -207,8 +207,8 @@ app.get("/servers/:serverId/status", async (c) => {
         state = "running";
         jobId = row.active_id ?? row.latest_id;
       } else if (row.has_queued) {
-        const startAfter = row.queued_startafter
-          ? new Date(row.queued_startafter).getTime()
+        const startAfter = row.queued_start_after
+          ? new Date(row.queued_start_after).getTime()
           : undefined;
         state = startAfter && startAfter > Date.now() ? "scheduled" : "queued";
         jobId = row.queued_id ?? row.latest_id;
@@ -224,11 +224,11 @@ app.get("/servers/:serverId/status", async (c) => {
       }
 
       const updatedAtSource =
-        row.active_startedon ??
-        row.queued_startafter ??
-        row.queued_createdon ??
-        row.latest_completedon ??
-        row.latest_createdon;
+        row.active_started_on ??
+        row.queued_start_after ??
+        row.queued_created_on ??
+        row.latest_completed_on ??
+        row.latest_created_on;
 
       let lastError: string | undefined;
       if (
@@ -251,11 +251,11 @@ app.get("/servers/:serverId/status", async (c) => {
         label: def.label,
         state,
         updatedAt: toIsoUtcMicros(new Date(updatedAtSource)),
-        ...(state === "running" && row.active_startedon
-          ? { activeSince: toIsoUtcMicros(new Date(row.active_startedon)) }
+        ...(state === "running" && row.active_started_on
+          ? { activeSince: toIsoUtcMicros(new Date(row.active_started_on)) }
           : {}),
-        ...(state === "scheduled" && row.queued_startafter
-          ? { scheduledFor: toIsoUtcMicros(new Date(row.queued_startafter)) }
+        ...(state === "scheduled" && row.queued_start_after
+          ? { scheduledFor: toIsoUtcMicros(new Date(row.queued_start_after)) }
           : {}),
         ...(jobId ? { jobId } : {}),
         ...(lastError ? { lastError } : {}),

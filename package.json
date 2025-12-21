@@ -1,6 +1,6 @@
 {
   "name": "streamystats",
-  "version": "2.13.0",
+  "version": "2.14.0",
   "description": "StreamyStats - Jellyfin analytics platform",
   "private": true,
   "workspaces": [
@@ -26,6 +26,8 @@
     "db:studio": "cd packages/database && bun run db:studio",
     "lint": "cd apps/nextjs-app && bun run lint",
     "lint:fix": "cd apps/nextjs-app && bun run lint:fix",
+    "format": "cd apps/nextjs-app && bun run format",
+    "format:fix": "cd apps/nextjs-app && bun run format:fix",
     "install:bun": "bun install"
   },
   "keywords": [

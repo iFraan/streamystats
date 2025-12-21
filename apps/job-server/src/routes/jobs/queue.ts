@@ -50,7 +50,7 @@ app.post("/cancel-by-type", async (c) => {
   }
 });
 
-app.get("/:queueName/:jobId/status", async (c) => {
+app.get("/queue/:queueName/:jobId/status", async (c) => {
   try {
     const queueName = c.req.param("queueName");
     const jobId = c.req.param("jobId");

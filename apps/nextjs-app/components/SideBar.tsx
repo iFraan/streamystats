@@ -8,7 +8,9 @@ import {
   BarChart3,
   BookOpen,
   Calendar,
+  CalendarDays,
   Clock,
+  EyeOff,
   Library,
   MessageSquare,
   Monitor,
@@ -97,6 +99,16 @@ const settings_items = [
     title: "General",
     url: "/settings/general",
     icon: Settings,
+  },
+  {
+    title: "Exclusions",
+    url: "/settings/exclusions",
+    icon: EyeOff,
+  },
+  {
+    title: "Seasonal",
+    url: "/settings/seasonal-recommendations",
+    icon: CalendarDays,
   },
   {
     title: "AI Recommendations",

@@ -22,6 +22,7 @@ import {
 import { cosineDistance } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { type Holiday, getActiveHolidays } from "../holidays";
+import { getExclusionSettings } from "./exclusions";
 import { getMe } from "./users";
 
 export interface SeasonalRecommendationItem {
@@ -75,27 +76,33 @@ const itemSelect = {
   parentThumbImageTag: items.parentThumbImageTag,
 } as const;
 
-/**
- * Get seasonal recommendations based on the current active holiday/season.
- * Uses keyword matching in name/overview and genre matching.
- */
-export async function getSeasonalRecommendations(
-  serverId: string | number,
-  limit = 15,
+const SEASONAL_POOL_SIZE = 200;
+
+async function getSeasonalRecommendationsCached(
+  serverIdNum: number,
+  userId: string | null,
+  poolSize: number,
 ): Promise<SeasonalRecommendationResult | null> {
-  // Note: Removing cache temporarily for debugging - can re-enable later
-  // "use cache";
-  // cacheLife("hours");
+  "use cache";
+  cacheLife("hours");
+  cacheTag(
+    `seasonal-${serverIdNum}`,
+    userId
+      ? `seasonal-${serverIdNum}-${userId}`
+      : `seasonal-${serverIdNum}-anon`,
+  );
 
-  const serverIdNum = Number(serverId);
-
-  // Get server's disabled holidays
-  const server = await db.query.servers.findFirst({
-    where: eq(servers.id, serverIdNum),
-    columns: { disabledHolidays: true },
-  });
+  // Get server's disabled holidays and exclusion settings
+  const [server, exclusions] = await Promise.all([
+    db.query.servers.findFirst({
+      where: eq(servers.id, serverIdNum),
+      columns: { disabledHolidays: true },
+    }),
+    getExclusionSettings(serverIdNum),
+  ]);
 
   const disabledHolidays = server?.disabledHolidays || [];
+  const { excludedLibraryIds } = exclusions;
 
   // Get all active holidays and filter out disabled ones
   const activeHolidays = getActiveHolidays();
@@ -104,27 +111,13 @@ export async function getSeasonalRecommendations(
   );
 
   if (enabledHolidays.length === 0) {
-    console.log(
-      `[Seasonal] No enabled holidays (${activeHolidays.length} active, ${disabledHolidays.length} disabled)`,
-    );
     return null;
   }
 
   // Use the highest priority enabled holiday
   const holiday = enabledHolidays[0];
-  // cacheTag(`seasonal-${serverIdNum}-${holiday.id}`);
-
-  console.log(`[Seasonal] Active holiday: ${holiday.name} (${holiday.id})`);
-  console.log(
-    `[Seasonal] Keywords: ${holiday.keywords.slice(0, 5).join(", ")}...`,
-  );
-  console.log(`[Seasonal] Genres: ${holiday.genres.join(", ") || "none"}`);
 
   try {
-    const currentUser = await getMe();
-    const userId =
-      currentUser?.serverId === serverIdNum ? currentUser.id : null;
-
     // Get user's watched items and hidden recommendations
     let watchedItemIds: string[] = [];
     let hiddenItemIds: string[] = [];
@@ -179,11 +172,6 @@ export async function getSeasonalRecommendations(
       return null;
     }
 
-    console.log(
-      `[Seasonal] Search conditions count: ${searchConditions.length}`,
-    );
-    console.log(`[Seasonal] Exclude IDs count: ${excludeIds.length}`);
-
     // First, find direct keyword/genre matches (Movies and Series only)
     const directMatches = await db
       .select({
@@ -197,12 +185,14 @@ export async function getSeasonalRecommendations(
           isNull(items.deletedAt),
           inArray(items.type, ["Movie", "Series"]),
           or(...searchConditions),
+          // Exclude items from excluded libraries
+          excludedLibraryIds.length > 0
+            ? notInArray(items.libraryId, excludedLibraryIds)
+            : sql`true`,
           excludeIds.length > 0 ? notInArray(items.id, excludeIds) : sql`true`,
         ),
       )
-      .limit(limit * 2);
-
-    console.log(`[Seasonal] Direct matches found: ${directMatches.length}`);
+      .limit(poolSize * 2);
 
     // Score and categorize matches
     const scoredMatches = directMatches.map((match) => {
@@ -284,21 +274,6 @@ export async function getSeasonalRecommendations(
       (m) => m.matchScore >= MIN_SCORE,
     );
 
-    console.log(
-      `[Seasonal] Qualified matches (score >= ${MIN_SCORE}): ${qualifiedMatches.length}`,
-    );
-    if (qualifiedMatches.length > 0) {
-      console.log(
-        "[Seasonal] Top 3 qualified:",
-        qualifiedMatches
-          .slice(0, 3)
-          .map(
-            (m) =>
-              `"${m.item.name}" (score: ${m.matchScore}, reason: ${m.matchReason})`,
-          ),
-      );
-    }
-
     // If we have matches with embeddings, find similar items
     const topMatches = qualifiedMatches.slice(
       0,
@@ -378,17 +353,9 @@ export async function getSeasonalRecommendations(
 
     // Sort by score and take top results
     allResults.sort((a, b) => b.matchScore - a.matchScore);
-    const finalResults = allResults.slice(0, limit);
-
-    console.log(`[Seasonal] Final results count: ${finalResults.length}`);
-    if (finalResults.length > 0) {
-      console.log(
-        `[Seasonal] Top result: "${finalResults[0].item.name}" (${finalResults[0].matchReason})`,
-      );
-    }
+    const finalResults = allResults.slice(0, poolSize);
 
     if (finalResults.length === 0) {
-      console.log("[Seasonal] No results found, returning null");
       return null;
     }
 
@@ -396,8 +363,48 @@ export async function getSeasonalRecommendations(
       holiday,
       items: finalResults,
     };
-  } catch (error) {
-    console.error("[Seasonal] Error getting seasonal recommendations:", error);
+  } catch {
     return null;
   }
+}
+
+/**
+ * Get seasonal recommendations based on the current active holiday/season.
+ * Uses keyword matching in name/overview and genre matching.
+ */
+export async function getSeasonalRecommendations(
+  serverId: string | number,
+  limit = 15,
+  offset = 0,
+): Promise<SeasonalRecommendationResult | null> {
+  const serverIdNum = Number(serverId);
+
+  // Get user outside the cached function
+  const currentUser = await getMe();
+  const userId = currentUser?.serverId === serverIdNum ? currentUser.id : null;
+
+  const result = await getSeasonalRecommendationsCached(
+    serverIdNum,
+    userId,
+    SEASONAL_POOL_SIZE,
+  );
+
+  if (!result) {
+    return null;
+  }
+
+  const paginatedItems = result.items.slice(offset, offset + limit);
+
+  if (paginatedItems.length === 0 && offset > 0) {
+    // No more items for this offset
+    return {
+      holiday: result.holiday,
+      items: [],
+    };
+  }
+
+  return {
+    holiday: result.holiday,
+    items: paginatedItems,
+  };
 }

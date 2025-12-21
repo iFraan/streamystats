@@ -206,21 +206,71 @@ export async function generateItemEmbeddingsJob(
 
     // Helper function to prepare text for embedding
     const prepareTextForEmbedding = (item: Item): string => {
-      const textParts = [
-        item.name,
-        item.overview,
-        item.type,
-        item.officialRating,
-        item.premiereDate,
-        item.communityRating,
-        item.productionYear,
-        item.seriesStudio,
-        item.runtimeTicks,
-        item.seriesName,
-        ...(item.genres || []),
-      ].filter(Boolean);
+      const parts: string[] = [];
 
-      // Add people data if available (actors, directors, etc.)
+      // 1. Core Metadata
+      parts.push(`Title: ${item.name}`);
+
+      if (item.originalTitle && item.originalTitle !== item.name) {
+        parts.push(`Original Title: ${item.originalTitle}`);
+      }
+
+      if (item.seriesName) {
+        parts.push(`Series: ${item.seriesName}`);
+      }
+
+      if (item.type) {
+        parts.push(`Type: ${item.type}`);
+      }
+
+      // 2. Descriptive Content
+      if (item.overview) {
+        parts.push(`Overview: ${item.overview}`);
+      }
+
+      if (item.genres && item.genres.length > 0) {
+        parts.push(`Genres: ${item.genres.join(", ")}`);
+      }
+
+      if (item.tags && item.tags.length > 0) {
+        parts.push(`Tags: ${item.tags.join(", ")}`);
+      }
+
+      // 3. Technical & Release Info
+      if (item.productionYear) {
+        parts.push(`Year: ${item.productionYear}`);
+      }
+
+      if (item.premiereDate) {
+        try {
+          const date = new Date(item.premiereDate).toISOString().split("T")[0];
+          parts.push(`Premiere: ${date}`);
+        } catch (e) {
+          // Ignore invalid dates
+        }
+      }
+
+      if (item.officialRating) {
+        parts.push(`Rating: ${item.officialRating}`);
+      }
+
+      if (item.communityRating) {
+        parts.push(`Community Rating: ${item.communityRating}`);
+      }
+
+      if (item.seriesStudio) {
+        parts.push(`Studio: ${item.seriesStudio}`);
+      }
+
+      if (item.runtimeTicks) {
+        // Convert ticks to minutes (1 tick = 100 nanoseconds; 10,000,000 ticks = 1 second)
+        const minutes = Math.round(item.runtimeTicks / 10000000 / 60);
+        if (minutes > 0) {
+          parts.push(`Runtime: ${minutes} minutes`);
+        }
+      }
+
+      // 4. People (Grouped by role for better context)
       if (item.people) {
         try {
           type PersonData = {
@@ -235,37 +285,45 @@ export async function generateItemEmbeddingsJob(
               : (item.people as Record<string, PersonData>);
 
           if (peopleData && typeof peopleData === "object") {
-            const peopleNames = Object.values(peopleData)
-              .filter(
-                (person): person is PersonData =>
-                  person !== null &&
-                  typeof person === "object" &&
-                  Boolean(person.Name),
-              )
-              .map((person) => {
-                // Include both name and role for better context
-                const parts = [person.Name];
-                if (person.Role && person.Type === "Actor") {
-                  parts.push(`as ${person.Role}`);
-                }
-                if (person.Type && person.Type !== "Actor") {
-                  parts.push(`(${person.Type})`);
-                }
-                return parts.join(" ");
-              });
+            const people = Object.values(peopleData).filter(
+              (p): p is PersonData =>
+                !!p && typeof p === "object" && !!p.Name,
+            );
 
-            textParts.push(...peopleNames);
+            const directors = people
+              .filter((p) => p.Type === "Director")
+              .map((p) => p.Name);
+
+            const cast = people
+              .filter((p) => p.Type === "Actor")
+              .map((p) => `${p.Name}${p.Role ? ` as ${p.Role}` : ""}`);
+
+            // Capture writers, producers, etc.
+            const crew = people
+              .filter((p) => p.Type !== "Director" && p.Type !== "Actor")
+              .map((p) => `${p.Name} (${p.Type || "Crew"})`);
+
+            if (directors.length > 0) {
+              parts.push(`Directors: ${directors.join(", ")}`);
+            }
+            if (cast.length > 0) {
+              // Limit cast to top 15 to save tokens/avoid dilution
+              parts.push(`Cast: ${cast.slice(0, 15).join(", ")}`);
+            }
+            if (crew.length > 0) {
+              parts.push(`Crew: ${crew.slice(0, 10).join(", ")}`);
+            }
           }
         } catch (error) {
-          // Silently continue if people data can't be parsed
           console.warn(
             `Failed to parse people data for item ${item.id}:`,
-            error
+            error,
           );
         }
       }
 
-      return textParts.join(" ").substring(0, DEFAULT_MAX_TEXT_LENGTH);
+      // Join with newlines to clearly separate semantic sections
+      return parts.join("\n").substring(0, DEFAULT_MAX_TEXT_LENGTH);
     };
 
     const expectedDimensions = config.dimensions;

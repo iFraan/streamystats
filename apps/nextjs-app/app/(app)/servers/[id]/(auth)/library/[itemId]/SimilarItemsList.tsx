@@ -75,7 +75,7 @@ export function SimilarItemsList({
                       key={item.id || `${item.name}-${item.productionYear}`}
                       className="flex-shrink-0 group relative"
                     >
-                      <div className="relative w-[190px] sm:w-[230px] py-2">
+                      <div className="relative w-[152px] sm:w-[184px] py-2">
                         <Link
                           href={`/servers/${server.id}/library/${item.id}`}
                           className="flex flex-col overflow-hidden border border-border bg-card rounded-lg hover:border-primary/50 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] hover:z-10 relative"
@@ -85,10 +85,10 @@ export function SimilarItemsList({
                             <Poster
                               item={item}
                               server={server}
-                              width={230}
-                              height={300}
+                              width={184}
+                              height={240}
                               preferredImageType="Primary"
-                              className="w-full h-[260px] sm:h-[320px] rounded-t-lg"
+                              className="w-full h-[208px] sm:h-[256px] rounded-t-lg"
                             />
                             <div className="absolute top-2 left-2 z-20">
                               <Badge
@@ -123,30 +123,6 @@ export function SimilarItemsList({
                                 )}
                               </p>
                             </div>
-
-                            {item.genres && item.genres.length > 0 && (
-                              <div className="flex flex-wrap gap-1 pt-0.5">
-                                {item.genres
-                                  .slice(0, 2)
-                                  .map((genre: string) => (
-                                    <Badge
-                                      key={genre}
-                                      variant="secondary"
-                                      className="text-[10px] px-1.5 py-0"
-                                    >
-                                      {genre}
-                                    </Badge>
-                                  ))}
-                                {item.genres.length > 2 && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-[10px] px-1.5 py-0"
-                                  >
-                                    +{item.genres.length - 2}
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
                           </div>
                         </Link>
                       </div>

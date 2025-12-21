@@ -13,7 +13,7 @@ import {
 import type { Server } from "@streamystats/database";
 import { EyeOffIcon, Link2, type LucideIcon, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type {
   RecommendationCardItem,
@@ -36,6 +36,7 @@ interface RecommendationsSectionProps {
   }>;
   formatRuntime?: (ticks: number | null) => string | null;
   emptyMessage: string;
+  fetchNextPage?: (offset: number) => Promise<RecommendationListItem[]>;
 }
 
 export function RecommendationsSection({
@@ -47,11 +48,15 @@ export function RecommendationsSection({
   onHideRecommendation,
   formatRuntime,
   emptyMessage,
+  fetchNextPage,
 }: RecommendationsSectionProps & {
   recommendations: RecommendationListItem[];
 }) {
   const [items, setItems] = useState(recommendations);
   const [hidingItems, setHidingItems] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const handleHideRecommendation = async (
     recommendation: RecommendationListItem,
@@ -91,6 +96,49 @@ export function RecommendationsSection({
     if (similarity >= 0.6) return "text-blue-500";
     return "text-yellow-500";
   };
+
+  useEffect(() => {
+    setItems(recommendations);
+    setHasMore(true);
+  }, [recommendations]);
+
+  useEffect(() => {
+    if (!fetchNextPage || !sentinelRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting && !isLoading && hasMore) {
+          setIsLoading(true);
+          fetchNextPage(items.length)
+            .then((newItems) => {
+              if (newItems.length === 0) {
+                setHasMore(false);
+              } else {
+                setItems((prev) => [...prev, ...newItems]);
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching next page:", error);
+            })
+            .finally(() => {
+              setIsLoading(false);
+            });
+        }
+      },
+      {
+        root: null,
+        rootMargin: "100px",
+        threshold: 0.1,
+      },
+    );
+
+    observer.observe(sentinelRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [fetchNextPage, items.length, isLoading, hasMore]);
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return (
@@ -150,10 +198,10 @@ export function RecommendationsSection({
 
                     return (
                       <div
-                        key={item.id || `${item.name}-${item.productionYear}`}
+                        key={item.id}
                         className="flex-shrink-0 group relative"
                       >
-                        <div className="relative w-[190px] sm:w-[230px] py-2">
+                        <div className="relative w-[152px] sm:w-[184px] py-2">
                           <Link
                             href={`/servers/${server.id}/library/${item.id}`}
                             className="flex flex-col overflow-hidden border border-border bg-card rounded-lg hover:border-primary/50 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] hover:z-10 relative"
@@ -163,10 +211,10 @@ export function RecommendationsSection({
                               <Poster
                                 item={item}
                                 server={server}
-                                width={230}
-                                height={300}
+                                width={184}
+                                height={240}
                                 preferredImageType="Primary"
-                                className="w-full h-[260px] sm:h-[320px] rounded-t-lg"
+                                className="w-full h-[208px] sm:h-[256px] rounded-t-lg"
                               />
                               <div className="absolute top-2 left-2 z-20">
                                 <Badge
@@ -294,28 +342,15 @@ export function RecommendationsSection({
                                   </div>
                                 </div>
                               )}
-
-                              {item.genres && item.genres.length > 0 && (
-                                <div className="flex flex-wrap gap-1 pt-0.5">
-                                  {item.genres
-                                    .slice(0, 2)
-                                    .map((genre: string) => (
-                                      <Badge
-                                        key={genre}
-                                        variant="secondary"
-                                        className="text-[10px] px-1.5 py-0"
-                                      >
-                                        {genre}
-                                      </Badge>
-                                    ))}
-                                </div>
-                              )}
                             </div>
                           </Link>
                         </div>
                       </div>
                     );
                   })}
+                  {fetchNextPage && (
+                    <div ref={sentinelRef} className="flex-shrink-0 w-4" />
+                  )}
                 </div>
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>

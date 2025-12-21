@@ -822,13 +822,16 @@ export const testChatConnection = async ({
     }
 
     if (config.provider === "ollama") {
-      const response = await fetch(
-        `${config.baseUrl || "http://localhost:11434"}/api/tags`,
-        {
-          method: "GET",
-          signal: AbortSignal.timeout(5000),
-        },
-      );
+      // Strip /v1 suffix if present since /api/tags is at the Ollama root
+      let ollamaBaseUrl = config.baseUrl || "http://localhost:11434";
+      if (ollamaBaseUrl.endsWith("/v1")) {
+        ollamaBaseUrl = ollamaBaseUrl.slice(0, -3);
+      }
+
+      const response = await fetch(`${ollamaBaseUrl}/api/tags`, {
+        method: "GET",
+        signal: AbortSignal.timeout(5000),
+      });
 
       if (!response.ok) {
         return { success: false, message: "Failed to connect to Ollama" };

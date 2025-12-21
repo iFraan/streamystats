@@ -77,7 +77,6 @@ node_modules/
 .dynamodb/
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo

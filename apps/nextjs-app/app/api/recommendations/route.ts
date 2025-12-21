@@ -18,6 +18,7 @@ type ResolvedParams = {
   end: string | null;
   includeBasedOn: boolean;
   includeReasons: boolean;
+  targetUserId: string | null;
 };
 
 type ApiUser = {
@@ -148,6 +149,7 @@ function parseQueryParams(searchParams: URLSearchParams):
       serverIdRaw: string | null;
       serverNameRaw: string | null;
       timeWindow: { start?: Date; end?: Date };
+      targetUserId: string | null;
     }
   | { ok: false; error: string } {
   const serverId = searchParams.get("serverId");
@@ -219,11 +221,14 @@ function parseQueryParams(searchParams: URLSearchParams):
     timeWindow = getPresetWindow(rangeRaw);
   }
 
+  const targetUserId = searchParams.get("targetUserId");
+
   return {
     ok: true,
     serverIdRaw: serverId,
     serverNameRaw: serverName,
     timeWindow,
+    targetUserId,
     params: {
       limit,
       type: typeRaw,
@@ -232,6 +237,7 @@ function parseQueryParams(searchParams: URLSearchParams):
       end: timeWindow.end ? toIsoUtcMicro(timeWindow.end) : null,
       includeBasedOn,
       includeReasons,
+      targetUserId,
     },
   };
 }
@@ -323,9 +329,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // DEFAULT: Use the authenticated user
+  let targetUser = { id: jellyfinUser.user.id, name: jellyfinUser.user.name };
+
+  // OVERRIDE: If Admin, allow fetching for another user
+  if (jellyfinUser.user.isAdmin && parsed.targetUserId) {
+    targetUser = { id: parsed.targetUserId, name: null };
+  }
+
   const payload = await buildRecommendationsResponse({
     server,
-    user: { id: jellyfinUser.user.id, name: jellyfinUser.user.name },
+    user: targetUser,
     params: parsed.params,
     timeWindow: parsed.timeWindow,
   });

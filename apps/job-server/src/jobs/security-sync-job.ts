@@ -55,8 +55,6 @@ export async function securityFullSyncJob(job: {
 
   const server = serverData[0];
 
-  console.log(`[security-sync] serverId=${serverId} action=start`);
-
   // Publish started event
   publishJobEvent({
     type: "started",
@@ -82,11 +80,14 @@ export async function securityFullSyncJob(job: {
       intelligent: true,
     });
 
-    result.activitiesSynced = activityResult.data?.synced ?? 0;
+    if (activityResult.status === "error") {
+      throw new Error(activityResult.error);
+    }
 
-    console.log(
-      `[security-sync] serverId=${serverId} step=activities synced=${result.activitiesSynced}`
-    );
+    // "Synced" = number of changed rows (inserted + updated)
+    result.activitiesSynced =
+      activityResult.data.activitiesInserted +
+      activityResult.data.activitiesUpdated;
 
     // Step 2: Geolocation
     publishJobEvent({
@@ -136,10 +137,6 @@ export async function securityFullSyncJob(job: {
 
     result.locationsProcessed = totalProcessed;
 
-    console.log(
-      `[security-sync] serverId=${serverId} step=geolocation processed=${totalProcessed} anomalies=${result.anomaliesDetected}`
-    );
-
     // Step 3: Fingerprints
     publishJobEvent({
       type: "progress",
@@ -159,10 +156,6 @@ export async function securityFullSyncJob(job: {
 
     result.fingerprintsUpdated = fingerprintResult.usersProcessed;
 
-    console.log(
-      `[security-sync] serverId=${serverId} step=fingerprints users=${result.fingerprintsUpdated}`
-    );
-
     // Complete!
     const duration = Date.now() - startTime;
 
@@ -176,10 +169,6 @@ export async function securityFullSyncJob(job: {
         durationMs: duration,
       },
     });
-
-    console.log(
-      `[security-sync] serverId=${serverId} action=complete durationMs=${duration} activities=${result.activitiesSynced} locations=${result.locationsProcessed} fingerprints=${result.fingerprintsUpdated} anomalies=${result.anomaliesDetected}`
-    );
 
     return result;
   } catch (error) {
@@ -198,5 +187,6 @@ export async function securityFullSyncJob(job: {
     throw error;
   }
 }
+
 
 

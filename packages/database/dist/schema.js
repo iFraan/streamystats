@@ -64,6 +64,10 @@ exports.servers = (0, pg_core_1.pgTable)("servers", {
     lastSyncCompleted: (0, pg_core_1.timestamp)("last_sync_completed"),
     // Holiday/seasonal recommendations settings
     disabledHolidays: (0, pg_core_1.text)("disabled_holidays").array().default([]),
+    // Statistics exclusion settings
+    // Users and libraries in these arrays will be hidden from all statistics
+    excludedUserIds: (0, pg_core_1.text)("excluded_user_ids").array().default([]),
+    excludedLibraryIds: (0, pg_core_1.text)("excluded_library_ids").array().default([]),
     createdAt: (0, pg_core_1.timestamp)("created_at").defaultNow().notNull(),
     updatedAt: (0, pg_core_1.timestamp)("updated_at").defaultNow().notNull(),
 }, (table) => [(0, pg_core_1.unique)("servers_url_unique").on(table.url)]);

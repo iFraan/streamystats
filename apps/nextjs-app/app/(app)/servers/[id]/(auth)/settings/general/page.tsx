@@ -7,7 +7,6 @@ import { CleanupManager } from "../CleanupManager";
 import { DangerousMergeManager } from "../DangerousMergeManager";
 import { DangerousSeriesMergeManager } from "../DangerousSeriesMergeManager";
 import { DeleteServer } from "../DeleteServer";
-import { HolidaySettingsManager } from "../HolidaySettingsManager";
 import { LibrarySyncManager } from "../LibrarySyncManager";
 import { MergeItemsManager } from "../MergeItemsManager";
 import { SyncManager } from "../SyncManager";
@@ -32,10 +31,6 @@ export default async function GeneralSettings(props: {
         <VersionSection />
         {isAdmin ? <ServerJobStatusCard serverId={server.id} /> : null}
         <UpdateConnection serverId={server.id} />
-        <HolidaySettingsManager
-          serverId={server.id}
-          disabledHolidays={server.disabledHolidays || []}
-        />
         <SyncManager serverId={server.id} serverName={server.name} />
         {isAdmin ? <LibrarySyncManager serverId={server.id} /> : null}
         {isAdmin ? <CleanupManager serverId={server.id} /> : null}

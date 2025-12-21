@@ -16,12 +16,12 @@ import {
   eq,
   gte,
   ilike,
-  inArray,
   isNotNull,
   lte,
   or,
   sql,
 } from "drizzle-orm";
+import { getStatisticsExclusions } from "./exclusions";
 
 export interface HistoryItem {
   session: Session;
@@ -65,14 +65,26 @@ export const getHistory = async (
     playMethod?: string;
   },
 ): Promise<HistoryResponse> => {
+  // Get exclusion settings
+  const { userExclusion, itemLibraryExclusion } =
+    await getStatisticsExclusions(serverId);
+
   const offset = (page - 1) * perPage;
 
   // Build base query conditions
-  const conditions = [
+  const conditions: SQL[] = [
     eq(sessions.serverId, serverId),
     isNotNull(sessions.itemId),
     isNotNull(sessions.userId),
   ];
+
+  // Add exclusion filters
+  if (userExclusion) {
+    conditions.push(userExclusion);
+  }
+  if (itemLibraryExclusion) {
+    conditions.push(itemLibraryExclusion);
+  }
 
   // Add date range filters
   if (filters?.startDate) {
@@ -313,20 +325,28 @@ export const getItemHistory = async (
   page = 1,
   perPage = 50,
 ): Promise<HistoryResponse> => {
+  // Get exclusion settings
+  const { userExclusion } = await getStatisticsExclusions(serverId);
+
   const offset = (page - 1) * perPage;
+
+  const conditions: SQL[] = [
+    eq(sessions.serverId, serverId),
+    eq(sessions.itemId, itemId),
+    isNotNull(sessions.userId),
+  ];
+
+  // Add exclusion filters
+  if (userExclusion) {
+    conditions.push(userExclusion);
+  }
 
   const data = await db
     .select()
     .from(sessions)
     .leftJoin(items, eq(sessions.itemId, items.id))
     .leftJoin(users, eq(sessions.userId, users.id))
-    .where(
-      and(
-        eq(sessions.serverId, serverId),
-        eq(sessions.itemId, itemId),
-        isNotNull(sessions.userId),
-      ),
-    )
+    .where(and(...conditions))
     .orderBy(desc(sessions.createdAt))
     .limit(perPage)
     .offset(offset);
@@ -334,13 +354,7 @@ export const getItemHistory = async (
   const totalCount = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(sessions)
-    .where(
-      and(
-        eq(sessions.serverId, serverId),
-        eq(sessions.itemId, itemId),
-        isNotNull(sessions.userId),
-      ),
-    )
+    .where(and(...conditions))
     .then((result) => result[0]?.count || 0);
 
   const totalPages = Math.ceil(totalCount / perPage);
@@ -376,12 +390,24 @@ export const getHistoryByFilters = async ({
   endDate?: string;
   limit?: number;
 }): Promise<HistoryItem[]> => {
-  const conditions = [
+  // Get exclusion settings
+  const { userExclusion, itemLibraryExclusion } =
+    await getStatisticsExclusions(serverId);
+
+  const conditions: SQL[] = [
     eq(sessions.serverId, serverId),
     isNotNull(sessions.itemId),
     isNotNull(sessions.userId),
     isNotNull(sessions.startTime),
   ];
+
+  // Add exclusion filters
+  if (userExclusion) {
+    conditions.push(userExclusion);
+  }
+  if (itemLibraryExclusion) {
+    conditions.push(itemLibraryExclusion);
+  }
 
   if (userId) {
     conditions.push(eq(sessions.userId, userId));

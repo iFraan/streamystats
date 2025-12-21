@@ -94,7 +94,8 @@ export function createChatModel(config: ChatConfig): LanguageModel | null {
         baseURL: config.baseUrl || "http://localhost:11434/v1",
         apiKey: "ollama",
       });
-      return ollama(config.model);
+      // Use .chat() explicitly to avoid Responses API which Ollama doesn't support
+      return ollama.chat(config.model);
     }
     default: {
       const openai = createOpenAI({

@@ -19,6 +19,7 @@ import {
 import pMap from "p-map";
 import { sleep } from "../../utils/sleep";
 import { formatSyncLogLine } from "./sync-log";
+import { formatError } from "../../utils/format-error";
 
 export interface ItemSyncOptions {
   itemPageSize?: number;
@@ -427,7 +428,7 @@ async function processItem(
       indexNumber: jellyfinItem.IndexNumber || null,
       parentIndexNumber: jellyfinItem.ParentIndexNumber || null,
       providerIds: jellyfinItem.ProviderIds || null,
-      isFolder: jellyfinItem.IsFolder,
+      isFolder: jellyfinItem.IsFolder || false,
       rawData: jellyfinItem,
       updatedAt: new Date(),
     };
@@ -456,7 +457,7 @@ async function processItem(
     communityRating: jellyfinItem.CommunityRating || null,
     runtimeTicks: jellyfinItem.RunTimeTicks || null,
     productionYear: jellyfinItem.ProductionYear || null,
-    isFolder: jellyfinItem.IsFolder,
+    isFolder: jellyfinItem.IsFolder || false,
     parentId: jellyfinItem.ParentId || null,
     mediaType: jellyfinItem.MediaType || null,
     width: jellyfinItem.Width || null,
@@ -830,7 +831,11 @@ async function mapItemsWithKnownLibrary(
       validItems.push(mappedItem);
     } catch (error) {
       // Catch any mapping errors
-      console.error(`Error mapping item ${item.Id}:`, error);
+      console.error(
+        `[items-sync] serverId=${serverId} itemId=${item.Id} status=map-error error=${formatError(
+          error
+        )}`
+      );
       invalidItems.push({
         id: item.Id,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -871,7 +876,7 @@ function mapJellyfinItem(
     communityRating: jellyfinItem.CommunityRating || null,
     runtimeTicks: jellyfinItem.RunTimeTicks || null,
     productionYear: jellyfinItem.ProductionYear || null,
-    isFolder: jellyfinItem.IsFolder,
+    isFolder: jellyfinItem.IsFolder || false,
     parentId: jellyfinItem.ParentId || null,
     mediaType: jellyfinItem.MediaType || null,
     width: jellyfinItem.Width || null,

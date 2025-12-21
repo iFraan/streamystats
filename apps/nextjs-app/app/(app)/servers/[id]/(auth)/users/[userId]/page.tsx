@@ -154,7 +154,7 @@ export default async function User({
           server={server}
         />
       </div>
-      <div className="mt-6">
+      <div className="mt-6 mb-4">
         <UserSimilarity serverId={server.id} userId={user.id} />
       </div>
       <HistoryTable

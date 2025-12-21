@@ -22,6 +22,7 @@ import {
 } from "drizzle-orm";
 import { cosineDistance } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
+import { getExclusionSettings } from "./exclusions";
 import { getMe } from "./users";
 
 const debugLog = (..._args: unknown[]) => {};
@@ -119,10 +120,12 @@ const stripEmbedding = (
   return card;
 };
 
+const RECOMMENDATION_POOL_SIZE = 500;
+
 async function getSimilarStatisticsCached(
   serverIdNum: number,
   userId: string,
-  limit: number,
+  poolSize: number,
   timeWindow?: RecommendationTimeWindow,
 ): Promise<RecommendationItem[]> {
   "use cache";
@@ -134,7 +137,7 @@ async function getSimilarStatisticsCached(
 
   try {
     debugLog(
-      `\n🚀 Starting recommendation process for server ${serverIdNum}, user ${userId}, limit ${limit}`,
+      `\n🚀 Starting recommendation process for server ${serverIdNum}, user ${userId}, pool size ${poolSize}`,
     );
 
     let recommendations: RecommendationItem[] = [];
@@ -143,13 +146,13 @@ async function getSimilarStatisticsCached(
     recommendations = await getUserSpecificRecommendations(
       serverIdNum,
       userId,
-      limit,
+      poolSize,
       timeWindow,
     );
     debugLog(`✅ Got ${recommendations.length} user-specific recommendations`);
 
-    if (recommendations.length < limit) {
-      const remainingLimit = limit - recommendations.length;
+    if (recommendations.length < poolSize) {
+      const remainingLimit = poolSize - recommendations.length;
       debugLog(
         `\n🔥 Need ${remainingLimit} more recommendations, getting popular items...`,
       );
@@ -178,6 +181,7 @@ export async function getSimilarStatistics(
   serverId: string | number,
   userId?: string,
   limit = 20,
+  offset = 0,
   timeWindow?: RecommendationTimeWindow,
 ): Promise<RecommendationItem[]> {
   const serverIdNum = Number(serverId);
@@ -194,12 +198,14 @@ export async function getSimilarStatistics(
     }
   }
 
-  return getSimilarStatisticsCached(
+  const allRecommendations = await getSimilarStatisticsCached(
     serverIdNum,
     targetUserId,
-    limit,
+    RECOMMENDATION_POOL_SIZE,
     timeWindow,
   );
+
+  return allRecommendations.slice(offset, offset + limit);
 }
 
 export const revalidateRecommendations = async (
@@ -379,7 +385,7 @@ async function getUserSpecificRecommendations(
       watchedItem.embedding,
     )})`;
 
-    // First, let's see the distribution of similarity scores
+    // Get a large pool of similar items with low threshold, sorted by similarity
     const allSimilarItems = await db
       .select({
         item: itemCardSelect,
@@ -390,6 +396,7 @@ async function getUserSpecificRecommendations(
         and(
           eq(items.serverId, serverId),
           isNull(items.deletedAt),
+          eq(items.type, "Movie"),
           isNotNull(items.embedding),
           notInArray(items.id, watchedItemIds), // Exclude already watched items
           hiddenItemIds.length > 0
@@ -398,7 +405,7 @@ async function getUserSpecificRecommendations(
         ),
       )
       .orderBy(desc(similarity))
-      .limit(50); // Get more for analysis
+      .limit(200); // Get a large pool for each base movie
 
     debugLog("  📊 Similarity score distribution (top 10):");
     allSimilarItems.slice(0, 10).forEach((result, index) => {
@@ -409,13 +416,14 @@ async function getUserSpecificRecommendations(
       );
     });
 
-    // Now filter for actual recommendations with lower threshold
+    // Filter with low threshold to ensure we have enough candidates
+    // Results are already sorted by similarity, so best matches come first
     const similarItems = allSimilarItems.filter(
-      (result) => Number(result.similarity) > 0.35,
+      (result) => Number(result.similarity) > 0.1,
     );
 
     debugLog(
-      `  Found ${similarItems.length} similar items (similarity > 0.35):`,
+      `  Found ${similarItems.length} similar items (similarity > 0.1):`,
     );
     similarItems.slice(0, 5).forEach((result, index) => {
       debugLog(
@@ -473,19 +481,25 @@ async function getUserSpecificRecommendations(
     }
   }
 
-  // Get the best recommendation for each base movie
+  // Get the best recommendation for each base movie, deduplicating by item ID
   const guaranteedRecommendations: RecommendationItem[] = [];
+  const guaranteedItemIds = new Set<string>();
   debugLog("\n🎯 Guaranteed recommendations (one per base movie):");
   for (const [baseMovieId, recs] of recommendationsPerBaseMovie) {
     if (recs.length > 0) {
-      const bestRec = recs.sort((a, b) => b.similarity - a.similarity)[0];
-      const baseMovie = baseMovies.find((m) => m.id === baseMovieId);
-      debugLog(
-        `  "${bestRec.item.name}" (similarity: ${bestRec.similarity.toFixed(
-          3,
-        )}) <- based on "${baseMovie?.name}"`,
-      );
-      guaranteedRecommendations.push(bestRec);
+      // Sort by similarity and find the best one that hasn't been added yet
+      const sortedRecs = recs.sort((a, b) => b.similarity - a.similarity);
+      const bestRec = sortedRecs.find((r) => !guaranteedItemIds.has(r.item.id));
+      if (bestRec) {
+        const baseMovie = baseMovies.find((m) => m.id === baseMovieId);
+        debugLog(
+          `  "${bestRec.item.name}" (similarity: ${bestRec.similarity.toFixed(
+            3,
+          )}) <- based on "${baseMovie?.name}"`,
+        );
+        guaranteedRecommendations.push(bestRec);
+        guaranteedItemIds.add(bestRec.item.id);
+      }
     }
   }
 
@@ -558,6 +572,10 @@ async function getPopularRecommendations(
     }`,
   );
 
+  // Get exclusion settings
+  const { excludedUserIds, excludedLibraryIds } =
+    await getExclusionSettings(serverId);
+
   // Get items that are popular (most watched) but exclude items already watched by the current user
   let watchedItemIds: string[] = [];
   let hiddenItemIds: string[] = [];
@@ -614,6 +632,7 @@ async function getPopularRecommendations(
       and(
         eq(items.serverId, serverId),
         isNull(items.deletedAt),
+        eq(items.type, "Movie"),
         isNotNull(items.embedding),
         // Exclude user's watched items if we have a user
         watchedItemIds.length > 0
@@ -622,6 +641,14 @@ async function getPopularRecommendations(
         // Exclude user's hidden items if we have a user
         hiddenItemIds.length > 0
           ? notInArray(items.id, hiddenItemIds)
+          : sql`true`,
+        // Exclude items from excluded libraries
+        excludedLibraryIds.length > 0
+          ? notInArray(items.libraryId, excludedLibraryIds)
+          : sql`true`,
+        // Exclude sessions from excluded users in the count
+        excludedUserIds.length > 0
+          ? notInArray(sessions.userId, excludedUserIds)
           : sql`true`,
       ),
     )

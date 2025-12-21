@@ -2,8 +2,20 @@
 "use cache";
 
 import { db, sessions, users } from "@streamystats/database";
-import { and, count, eq, gte, isNotNull, lte, sql, sum } from "drizzle-orm";
+import {
+  type SQL,
+  and,
+  count,
+  eq,
+  gte,
+  isNotNull,
+  lte,
+  notInArray,
+  sql,
+  sum,
+} from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
+import { getStatisticsExclusions } from "./exclusions";
 
 export interface ClientStat {
   clientName: string;
@@ -62,7 +74,10 @@ export async function getClientStatistics(
   cacheLife("days");
   cacheTag(`client-statistics-${serverId}`);
 
-  const whereConditions = [
+  // Get exclusion settings
+  const { userExclusion } = await getStatisticsExclusions(serverId);
+
+  const whereConditions: SQL[] = [
     eq(sessions.serverId, serverId),
     isNotNull(sessions.clientName),
   ];
@@ -75,6 +90,11 @@ export async function getClientStatistics(
   }
   if (userId) {
     whereConditions.push(eq(sessions.userId, userId));
+  }
+
+  // Add exclusion filters
+  if (userExclusion) {
+    whereConditions.push(userExclusion);
   }
 
   // Get all client statistics

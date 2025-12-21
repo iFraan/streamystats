@@ -11,17 +11,26 @@ import { cancelJobsByName } from "../routes/jobs/utils";
 class SyncScheduler {
   private scheduledTasks: Map<string, cron.ScheduledTask> = new Map();
   private enabled: boolean = false;
-  private activitySyncInterval: string = "*/1 * * * *"; // Every minute
-  private recentItemsSyncInterval: string = "*/1 * * * *"; // Every minute
-  private userSyncInterval: string = "*/1 * * * *"; // Every minute
-  private peopleSyncInterval: string = "*/15 * * * *"; // Every 15 minutes
-  private embeddingsSyncInterval: string = "*/15 * * * *"; // Every 15 minutes
-  private geolocationSyncInterval: string = "*/5 * * * *"; // Every 5 minutes
-  private fingerprintSyncInterval: string = "0 */6 * * *"; // Every 6 hours
-  private jobCleanupInterval: string = "*/1 * * * *"; // Every minute
-  private oldJobCleanupInterval: string = "0 3 * * *"; // Daily at 3 AM
-  private fullSyncInterval: string = "0 2 * * *"; // Daily at 2 AM
-  private deletedItemsCleanupInterval: string = "0 * * * *"; // Every hour
+  private activitySyncInterval: string =
+    Bun.env.CRON_ACTIVITY_SYNC || "*/1 * * * *"; // Every minute
+  private recentItemsSyncInterval: string =
+    Bun.env.CRON_RECENT_ITEMS_SYNC || "*/1 * * * *"; // Every minute
+  private userSyncInterval: string = Bun.env.CRON_USER_SYNC || "*/1 * * * *"; // Every minute
+  private peopleSyncInterval: string =
+    Bun.env.CRON_PEOPLE_SYNC || "*/15 * * * *"; // Every 15 minutes
+  private embeddingsSyncInterval: string =
+    Bun.env.CRON_EMBEDDINGS_SYNC || "*/15 * * * *"; // Every 15 minutes
+  private geolocationSyncInterval: string =
+    Bun.env.CRON_GEOLOCATION_SYNC || "*/5 * * * *"; // Every 5 minutes
+  private fingerprintSyncInterval: string =
+    Bun.env.CRON_FINGERPRINT_SYNC || "0 */6 * * *"; // Every 6 hours
+  private jobCleanupInterval: string =
+    Bun.env.CRON_JOB_CLEANUP || "*/1 * * * *"; // Every minute
+  private oldJobCleanupInterval: string =
+    Bun.env.CRON_OLD_JOB_CLEANUP || "0 3 * * *"; // Daily at 3 AM
+  private fullSyncInterval: string = Bun.env.CRON_FULL_SYNC || "0 2 * * *"; // Daily at 2 AM
+  private deletedItemsCleanupInterval: string =
+    Bun.env.CRON_DELETED_ITEMS_CLEANUP || "0 * * * *"; // Every hour
 
   /**
    * Reset any servers stuck in "syncing" status on startup
@@ -66,8 +75,17 @@ class SyncScheduler {
     }
 
     await this.performStartupCleanup();
-    console.log("[scheduler] trigger=startup-full-sync");
-    await this.triggerFullSync();
+    
+    const skipStartupFullSync = 
+      Bun.env.SKIP_STARTUP_FULL_SYNC?.toLowerCase() === "true" ||
+      Bun.env.SKIP_STARTUP_FULL_SYNC === "1";
+    
+    if (skipStartupFullSync) {
+      console.log("[scheduler] trigger=startup-full-sync status=skipped reason=SKIP_STARTUP_FULL_SYNC");
+    } else {
+      console.log("[scheduler] trigger=startup-full-sync");
+      await this.triggerFullSync();
+    }
 
     this.enabled = true;
 
@@ -584,6 +602,7 @@ class SyncScheduler {
             continue;
           }
 
+          // pg-boss v12: use API to check for active jobs
           let hasActiveJob = false;
           try {
             const stats = await boss.getQueueStats("generate-item-embeddings");

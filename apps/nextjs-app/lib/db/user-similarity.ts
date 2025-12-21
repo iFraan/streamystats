@@ -9,10 +9,12 @@ import {
   inArray,
   isNotNull,
   lte,
+  notInArray,
   sql,
   sum,
 } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
+import { getExclusionSettings } from "./exclusions";
 import { getUsers } from "./users";
 
 // Helper for cosine similarity in memory
@@ -250,10 +252,16 @@ export async function getSimilarUsers(
   cacheTag(`similar-users-${serverId}-${targetUserId}`);
 
   const serverIdNum = Number(serverId);
+
+  // Get exclusion settings
+  const { excludedUserIds } = await getExclusionSettings(serverIdNum);
+
   const allUsers = await getUsers({ serverId: serverIdNum });
 
-  // Filter out the target user from the list of candidates (we compare against them)
-  const otherUsers = allUsers.filter((u) => u.id !== targetUserId);
+  // Filter out the target user and excluded users from the list of candidates
+  const otherUsers = allUsers.filter(
+    (u) => u.id !== targetUserId && !excludedUserIds.includes(u.id),
+  );
   if (otherUsers.length === 0) {
     return { overall: [], thisMonth: [] };
   }
