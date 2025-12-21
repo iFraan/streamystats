@@ -78,21 +78,6 @@ function FitBoundsComponent({ locations }: FitBoundsComponentProps) {
   return null;
 }
 
-// Component to handle map cleanup on unmount
-function MapCleanup() {
-  const map = useMap();
-
-  useEffect(() => {
-    return () => {
-      // Properly clean up the map instance on unmount
-      map.off();
-      map.remove();
-    };
-  }, [map]);
-
-  return null;
-}
-
 interface MapComponentProps {
   locations: LocationPoint[];
   showLegend?: boolean;
@@ -150,7 +135,6 @@ export default function MapComponent({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBoundsComponent locations={locations} />
-        <MapCleanup />
 
         {locations.map((location, index) => (
           <Marker
