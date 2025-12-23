@@ -1,13 +1,5 @@
 "use client";
 
-import { Poster } from "@/app/(app)/servers/[id]/(auth)/dashboard/Poster";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import {
-  type SeasonalRecommendationResult,
-  getSeasonalRecommendations,
-} from "@/lib/db/seasonal-recommendations";
-import type { Holiday } from "@/lib/holidays";
 import type { Server } from "@streamystats/database";
 import {
   BookOpen,
@@ -35,6 +27,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { Poster } from "@/app/(app)/servers/[id]/(auth)/dashboard/Poster";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import {
+  getSeasonalRecommendations,
+  type SeasonalRecommendationResult,
+} from "@/lib/db/seasonal-recommendations";
 
 // Map icon names to Lucide components
 const iconMap: Record<string, LucideIcon> = {
@@ -319,7 +318,7 @@ export function SeasonalRecommendations({
             <ScrollArea dir="ltr" className="w-full py-1">
               <div className="flex gap-4 flex-nowrap px-4 w-max">
                 {items.map((recommendation) => {
-                  const { item, matchReason } = recommendation;
+                  const { item } = recommendation;
 
                   return (
                     <div

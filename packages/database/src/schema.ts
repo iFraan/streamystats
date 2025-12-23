@@ -134,6 +134,11 @@ export const servers = pgTable(
     excludedUserIds: text("excluded_user_ids").array().default([]),
     excludedLibraryIds: text("excluded_library_ids").array().default([]),
 
+    // Embedding job control - set to true to stop a running embedding job
+    embeddingStopRequested: boolean("embedding_stop_requested")
+      .notNull()
+      .default(false),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

@@ -1,5 +1,7 @@
 "use client";
 
+import { Check } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,9 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQueryParams } from "@/hooks/useQueryParams";
-import { Check } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import React from "react";
 
 interface LibraryDropdownProps {
   libraries: Library[];

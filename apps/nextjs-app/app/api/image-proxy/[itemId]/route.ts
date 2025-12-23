@@ -1,4 +1,3 @@
-import { getServer } from "@/lib/db/server";
 import { db, servers } from "@streamystats/database";
 import { ilike } from "drizzle-orm";
 import type { NextRequest } from "next/server";

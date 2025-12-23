@@ -1,8 +1,7 @@
-import { getWatchTimePerType } from "@/lib/db/statistics";
-import { getMe } from "@/lib/db/users";
-import { showAdminStatistics } from "@/utils/adminTools";
 import type { Server } from "@streamystats/database";
-import { type JSX, Suspense } from "react";
+import type { JSX } from "react";
+import { getWatchTimePerType } from "@/lib/db/statistics";
+import { getMe, isUserAdmin } from "@/lib/db/users";
 import { WatchTimeGraph } from "./WatchTimeGraph";
 
 interface Props {
@@ -16,13 +15,12 @@ export async function Graph({
   startDate,
   endDate,
 }: Props): Promise<JSX.Element> {
-  const showAdminStats = await showAdminStatistics();
-  const me = await getMe();
+  const [isAdmin, me] = await Promise.all([isUserAdmin(), getMe()]);
   const data = await getWatchTimePerType({
     serverId: server.id,
     startDate,
     endDate,
-    userId: showAdminStats ? undefined : me?.id,
+    userId: isAdmin ? undefined : me?.id,
   });
 
   if (!data) {

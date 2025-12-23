@@ -1,9 +1,11 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "nextjs-toploader/app";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
-
 import { Spinner } from "@/components/Spinner";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,9 +27,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { login } from "@/lib/auth";
 import type { Server } from "@/lib/types";
-import { useRouter } from "nextjs-toploader/app";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
 
 const FormSchema = z.object({
   username: z.string(),

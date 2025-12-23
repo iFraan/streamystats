@@ -1,5 +1,9 @@
 "use client";
 
+import type { User } from "@streamystats/database/schema";
+import { Loader, Settings2, UserX } from "lucide-react";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,10 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
-import type { User } from "@streamystats/database/schema";
-import { Loader, Settings2, UserX } from "lucide-react";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
 import { updateExcludedUsersAction } from "./actions";
 
 interface ExcludedUsersManagerProps {

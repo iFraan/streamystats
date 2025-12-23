@@ -1,6 +1,6 @@
-import { getServers } from "@/lib/db/server";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { getServers } from "@/lib/db/server";
 
 export async function GET() {
   // The middleware will set this header if there's a server connectivity issue

@@ -1,7 +1,7 @@
+import { useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { User } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useMemo } from "react";
 
 interface Props {
   user:

@@ -1,7 +1,7 @@
 "use client";
 
-import type { TasteProfile } from "@/lib/db/taste-profile";
 import { useEffect, useState } from "react";
+import type { TasteProfile } from "@/lib/db/taste-profile";
 import { TasteFingerprint } from "./TasteFingerprint";
 
 interface ResponsiveFingerprintProps {

@@ -1,10 +1,10 @@
 "use client";
 
-import { getUserById } from "@/lib/db/users";
-import { basePath } from "@/lib/utils";
 import { House } from "lucide-react";
 import { useParams, usePathname } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { getUserById } from "@/lib/db/users";
+import { basePath } from "@/lib/utils";
 import {
   Breadcrumb,
   BreadcrumbItem,

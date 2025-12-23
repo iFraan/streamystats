@@ -1,2 +1,2 @@
-export * from "./TasteFingerprint";
 export * from "./ResponsiveFingerprint";
+export * from "./TasteFingerprint";

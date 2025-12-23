@@ -1,5 +1,24 @@
 "use client";
 
+import type { Server } from "@streamystats/database/schema";
+import { useQuery } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
+import {
+  AlertTriangle,
+  Clock,
+  Cog,
+  Film,
+  Monitor,
+  MonitorPlay,
+  Pause,
+  Play,
+  Smartphone,
+  Tv,
+  User,
+  Video,
+  Zap,
+} from "lucide-react";
+import Link from "next/link";
 import JellyfinAvatar from "@/components/JellyfinAvatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,30 +39,11 @@ import {
   type ActiveSession,
   getActiveSessions,
 } from "@/lib/db/active-sessions";
-import type { Server } from "@streamystats/database/schema";
-import { useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
-import {
-  AlertTriangle,
-  Clock,
-  Cog,
-  Film,
-  Monitor,
-  MonitorPlay,
-  Pause,
-  Play,
-  Smartphone,
-  Tv,
-  User,
-  Video,
-  Zap,
-} from "lucide-react";
-import Link from "next/link";
 import LoadingSessions from "./LoadingSessions";
 import { Poster } from "./Poster";
 
 // Utility: show seconds ago if < 60s, else use formatDistanceToNow
-function formatDistanceWithSeconds(date: Date) {
+function _formatDistanceWithSeconds(date: Date) {
   const now = new Date();
   const diff = Math.floor((now.getTime() - date.getTime()) / 1000); // in seconds
   if (diff < 1) {
@@ -60,6 +60,8 @@ export function ActiveSessions({ server }: { server: Server }) {
     queryKey: ["activeSessions", server.id],
     queryFn: () => getActiveSessions(server.id),
     refetchInterval: 5000, // Increased from 500ms to 5s to reduce load during connectivity issues
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
     // Don't throw on error, handle it gracefully instead
     retry: 1,
     retryDelay: 3000,
@@ -341,7 +343,7 @@ function MediaTypeBadge({ type }: { type?: string }) {
   );
 }
 
-function PlaybackMethodBadge({ session }: { session: ActiveSession }) {
+function _PlaybackMethodBadge({ session }: { session: ActiveSession }) {
   const isTranscoding =
     session.transcodingInfo && !session.transcodingInfo.isVideoDirect;
 

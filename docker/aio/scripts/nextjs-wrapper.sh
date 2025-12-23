@@ -5,5 +5,5 @@ until curl -sf http://localhost:3005/health >/dev/null 2>&1; do
 done
 echo "[AIO] Starting Next.js..."
 cd /app/apps/nextjs-app
-exec /root/.bun/bin/bun run server.js
+exec node server.js
 

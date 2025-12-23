@@ -1,9 +1,5 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { triggerGeolocationBackfill } from "@/lib/db/locations";
 import {
   AlertCircle,
   Globe,
@@ -14,6 +10,10 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { triggerGeolocationBackfill } from "@/lib/db/locations";
 
 interface SecurityStatsProps {
   stats: {
@@ -30,7 +30,7 @@ interface SecurityStatsProps {
 
 export function SecurityStats({ stats, serverId }: SecurityStatsProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [_isPending, startTransition] = useTransition();
   const [isBackfilling, setIsBackfilling] = useState(stats.isBackfillRunning);
 
   const totalUnresolved = Object.values(stats.unresolvedAnomalies).reduce(

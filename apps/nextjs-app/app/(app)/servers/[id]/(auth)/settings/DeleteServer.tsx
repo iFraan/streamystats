@@ -1,5 +1,8 @@
 "use client";
 
+import { useRouter } from "nextjs-toploader/app";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
 import {
   AlertDialog,
@@ -15,9 +18,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { deleteServer } from "@/lib/db/server";
 import type { Server } from "@/lib/types";
-import { useRouter } from "nextjs-toploader/app";
-import { useState } from "react";
-import { toast } from "sonner";
 
 interface Props {
   server: Server;

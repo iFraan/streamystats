@@ -1,7 +1,7 @@
-import { Skeleton } from "@/components/ui/skeleton";
-import { getServer, getServers } from "@/lib/db/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getServer, getServers } from "@/lib/db/server";
 import { SignInForm } from "./SignInForm";
 
 export default async function Page({

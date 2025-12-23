@@ -1,5 +1,8 @@
 "use client";
 
+import { CalendarDays, Loader, Settings2 } from "lucide-react";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,9 +22,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { HOLIDAYS } from "@/lib/holidays";
-import { CalendarDays, Loader, Settings2 } from "lucide-react";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
 import { updateDisabledHolidaysAction } from "./holiday-actions";
 
 interface HolidaySettingsManagerProps {

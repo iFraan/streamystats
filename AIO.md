@@ -149,6 +149,19 @@ Check logs: `docker logs streamystats`
 
 Wait 60-90 seconds for all services to initialize. The health check has a 90s start period.
 
+### `FATAL:  role "root" does not exist`
+
+This means something is trying to connect to PostgreSQL using the username `root`.
+
+Common causes:
+- `DATABASE_URL` is missing or doesn’t include a username (some clients fall back to the OS user, which is often `root` in containers).
+- You changed `POSTGRES_USER` / `DATABASE_URL` after the database volume was already initialized. PostgreSQL only creates the initial user on first init; existing volumes won’t auto-create the new role.
+
+Fix:
+- Ensure `DATABASE_URL` includes the correct user (default is `postgres`) and matches your DB:
+  - Example: `postgresql://postgres:<password>@localhost:5432/streamystats`
+- If you intentionally changed the DB user, either create that role in Postgres or delete the volume and re-initialize the database.
+
 ### Permission errors on volume
 
 ```bash

@@ -1,5 +1,15 @@
 "use client";
 
+import { InfoIcon } from "lucide-react";
+import React from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { CustomBarLabel } from "@/components/ui/CustomBarLabel";
 import {
   Card,
@@ -16,16 +26,6 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { ClientStat } from "@/lib/db/client-statistics";
-import { InfoIcon } from "lucide-react";
-import React from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 interface ClientBreakdownCardProps {
   data: ClientStat[];

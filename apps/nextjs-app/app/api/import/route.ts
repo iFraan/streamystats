@@ -1,14 +1,14 @@
-import { requireAdmin } from "@/lib/api-auth";
-import { getServer } from "@/lib/db/server";
 import { db } from "@streamystats/database";
 import {
-  type NewSession,
   items,
+  type NewSession,
   sessions,
   users,
 } from "@streamystats/database/schema";
 import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/api-auth";
+import { getServer } from "@/lib/db/server";
 
 // Types for the import data format
 interface ExportInfo {
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
 
     try {
       importData = JSON.parse(fileContent);
-    } catch (error) {
+    } catch (_error) {
       return NextResponse.json(
         { error: "Invalid JSON format" },
         { status: 400 },

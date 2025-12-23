@@ -1,9 +1,5 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDateUS, formatDuration } from "@/lib/utils";
 import type { Item } from "@streamystats/database/schema";
 import {
   BarChart3,
@@ -14,13 +10,17 @@ import {
   Video,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { ViewerDetailsDialog } from "./ViewerDetailsDialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateUS, formatDuration } from "@/lib/utils";
 import type { ItemDetailsResponse } from "./types";
+import { ViewerDetailsDialog } from "./ViewerDetailsDialog";
 
 interface ItemMetadataProps {
   item: Item;
   statistics: ItemDetailsResponse;
-  showAdminStats?: boolean;
+  isAdmin?: boolean;
   serverId: number;
   itemId: string;
 }
@@ -78,7 +78,7 @@ function KeyValueRow({
 export function ItemMetadata({
   item,
   statistics,
-  showAdminStats = false,
+  isAdmin = false,
   serverId,
   itemId,
 }: ItemMetadataProps) {
@@ -92,7 +92,7 @@ export function ItemMetadata({
     usersWatched,
   } = statistics;
 
-  const canViewAnalytics = showAdminStats && usersWatched.length > 0;
+  const canViewAnalytics = isAdmin && usersWatched.length > 0;
   const openViewersDialog = useCallback(() => {
     setShowViewersDialog(true);
   }, []);

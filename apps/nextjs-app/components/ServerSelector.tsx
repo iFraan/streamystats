@@ -1,7 +1,5 @@
 "use client";
 
-import type { Server } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import {
   Check,
   ChevronsUpDown,
@@ -11,13 +9,14 @@ import {
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo } from "react";
+import type { Server } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { SidebarMenuButton } from "./ui/sidebar";
 
 interface Props extends React.HTMLAttributes<HTMLButtonElement> {
   servers: Server[];

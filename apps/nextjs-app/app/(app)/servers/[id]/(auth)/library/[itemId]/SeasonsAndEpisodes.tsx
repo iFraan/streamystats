@@ -1,5 +1,11 @@
 "use client";
 
+import type { Item, Server } from "@streamystats/database/schema";
+import { Calendar, Clock, Play, Tv } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { Blurhash } from "react-blurhash";
 import {
   Accordion,
   AccordionContent,
@@ -9,13 +15,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SeasonEpisode } from "@/lib/db/items";
 import { formatDuration } from "@/lib/utils";
-import type { Server } from "@streamystats/database/schema";
-import type { Item } from "@streamystats/database/schema";
-import { Calendar, Clock, Play, Tv } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Blurhash } from "react-blurhash";
 
 interface SeasonsAndEpisodesProps {
   seasons: SeasonEpisode[];

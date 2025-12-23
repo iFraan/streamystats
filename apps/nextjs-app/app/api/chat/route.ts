@@ -1,13 +1,13 @@
+import {
+  convertToModelMessages,
+  stepCountIs,
+  streamText,
+  type UIMessage,
+} from "ai";
 import { type ChatConfig, createChatModel } from "@/lib/ai/providers";
 import { createChatTools } from "@/lib/ai/tools";
 import { getServer } from "@/lib/db/server";
 import { getMe } from "@/lib/db/users";
-import {
-  type UIMessage,
-  convertToModelMessages,
-  stepCountIs,
-  streamText,
-} from "ai";
 
 export const maxDuration = 60;
 

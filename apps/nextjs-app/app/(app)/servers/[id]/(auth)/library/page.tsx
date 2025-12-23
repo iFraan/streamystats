@@ -1,7 +1,8 @@
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { Container } from "@/components/Container";
 import { PageTitle } from "@/components/PageTitle";
 import { Skeleton } from "@/components/ui/skeleton";
-
 import { getLibraries } from "@/lib/db/libraries";
 import {
   getAggregatedLibraryStatistics,
@@ -9,8 +10,6 @@ import {
 } from "@/lib/db/library-statistics";
 import { getServer } from "@/lib/db/server";
 import { isUserAdmin } from "@/lib/db/users";
-import { redirect } from "next/navigation";
-import { Suspense } from "react";
 import { ItemWatchStatsTable } from "./ItemWatchStatsTable";
 import { LibraryStatisticsCards } from "./LibraryStatisticsCards";
 

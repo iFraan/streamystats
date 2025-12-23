@@ -1,14 +1,15 @@
 // Transcoding statistics types and functions
-import { db, sessions } from "@streamystats/database";
+
 import type { Session } from "@streamystats/database";
+import { db, sessions } from "@streamystats/database";
 import {
-  type SQL,
   and,
   eq,
   gte,
   isNotNull,
   lte,
   notInArray,
+  type SQL,
 } from "drizzle-orm";
 import { getExclusionSettings } from "./exclusions";
 
@@ -267,7 +268,7 @@ export async function getTranscodingStatistics(
   const bitrateStats = calculateNumericStats("Bitrate", bitrates);
   const widthStats = calculateNumericStats("Width", widths);
   const heightStats = calculateNumericStats("Height", heights);
-  const audioChannelStats = calculateNumericStats(
+  const _audioChannelStats = calculateNumericStats(
     "Audio Channels",
     audioChannels,
   );
@@ -581,7 +582,7 @@ export async function getResolutionDistribution(
       session.transcodingWidth &&
       session.transcodingHeight
     ) {
-      const resolution = `${session.transcodingWidth}x${session.transcodingHeight}`;
+      const _resolution = `${session.transcodingWidth}x${session.transcodingHeight}`;
 
       // Group into common resolution categories
       let category: string;

@@ -1,5 +1,4 @@
-import { addDays } from "date-fns";
-import { endOfDay } from "date-fns";
+import { addDays, endOfDay } from "date-fns";
 
 export const getDefaultStartDate = (): string =>
   addDays(new Date(), -30).toISOString().split("T")[0];

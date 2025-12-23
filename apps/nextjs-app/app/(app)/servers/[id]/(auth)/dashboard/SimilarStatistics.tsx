@@ -1,12 +1,12 @@
 "use client";
 
-import {
-  type RecommendationItem,
-  getSimilarStatistics,
-  hideRecommendation,
-} from "@/lib/db/similar-statistics";
 import type { Server } from "@streamystats/database";
 import { Film } from "lucide-react";
+import {
+  getSimilarStatistics,
+  hideRecommendation,
+  type RecommendationItem,
+} from "@/lib/db/similar-statistics";
 import { RecommendationsSection } from "./RecommendationsSection";
 
 interface Props {

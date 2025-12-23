@@ -1,5 +1,7 @@
 "use client";
 
+import { Loader, Zap } from "lucide-react";
+import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -30,15 +32,12 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
-  type ChatAIConfig,
   type ChatProvider,
   clearChatConfig,
   saveChatConfig,
   testChatConnection,
 } from "@/lib/db/server";
 import type { Server } from "@/lib/types";
-import { Loader, Zap } from "lucide-react";
-import { useState } from "react";
 
 const PROVIDER_PRESETS = {
   openai: {
@@ -168,7 +167,7 @@ export function ChatAIManager({ server }: { server: Server }) {
         type: "success",
         message: "AI Chat configuration saved",
       });
-    } catch (error) {
+    } catch (_error) {
       setActionResult({
         type: "error",
         message: "Failed to save AI Chat configuration",
@@ -194,7 +193,7 @@ export function ChatAIManager({ server }: { server: Server }) {
         type: result.success ? "success" : "error",
         message: result.message,
       });
-    } catch (error) {
+    } catch (_error) {
       setActionResult({
         type: "error",
         message: "Failed to test connection",

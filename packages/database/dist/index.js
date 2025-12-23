@@ -17,12 +17,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrate = exports.closeConnection = exports.database = exports.db = void 0;
-// Export the database connection
+exports.migrate = exports.getDb = exports.getDatabaseUrl = exports.getClient = exports.closeConnection = exports.database = exports.db = exports.client = void 0;
+// Export the database connection (lazy-init; safe to import in Next.js build/SSG)
 var connection_1 = require("./connection");
+Object.defineProperty(exports, "client", { enumerable: true, get: function () { return connection_1.client; } });
 Object.defineProperty(exports, "db", { enumerable: true, get: function () { return connection_1.db; } });
 Object.defineProperty(exports, "database", { enumerable: true, get: function () { return __importDefault(connection_1).default; } });
 Object.defineProperty(exports, "closeConnection", { enumerable: true, get: function () { return connection_1.closeConnection; } });
+Object.defineProperty(exports, "getClient", { enumerable: true, get: function () { return connection_1.getClient; } });
+Object.defineProperty(exports, "getDatabaseUrl", { enumerable: true, get: function () { return connection_1.getDatabaseUrl; } });
+Object.defineProperty(exports, "getDb", { enumerable: true, get: function () { return connection_1.getDb; } });
 // Export all schema tables and types
 __exportStar(require("./schema"), exports);
 // Export migration utilities

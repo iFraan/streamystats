@@ -1,15 +1,15 @@
+import { redirect } from "next/navigation";
 import { Container } from "@/components/Container";
 import { PageTitle } from "@/components/PageTitle";
 import {
-  type HistoryResponse,
   getHistory,
   getUniqueClientNames,
   getUniqueDeviceNames,
   getUniquePlayMethods,
+  type HistoryResponse,
 } from "@/lib/db/history";
 import { getServer } from "@/lib/db/server";
 import { getUsers } from "@/lib/db/users";
-import { redirect } from "next/navigation";
 import { HistoryTable } from "./HistoryTable";
 
 export default async function HistoryPage({

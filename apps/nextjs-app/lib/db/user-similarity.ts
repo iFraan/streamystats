@@ -1,18 +1,7 @@
 "use cache";
 
-import { type User, db, items, sessions, users } from "@streamystats/database";
-import {
-  and,
-  desc,
-  eq,
-  gte,
-  inArray,
-  isNotNull,
-  lte,
-  notInArray,
-  sql,
-  sum,
-} from "drizzle-orm";
+import { db, items, sessions, type User } from "@streamystats/database";
+import { and, desc, eq, gte, inArray, isNotNull, lte, sum } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { getExclusionSettings } from "./exclusions";
 import { getUsers } from "./users";

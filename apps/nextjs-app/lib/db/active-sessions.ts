@@ -1,6 +1,6 @@
-import { fetch } from "@/lib/utils";
 import type { Item, User } from "@streamystats/database/schema";
 import { toast } from "sonner";
+import { fetch } from "@/lib/utils";
 
 export type ActiveSession = {
   sessionKey: string;
@@ -38,25 +38,68 @@ export const getActiveSessions = async (
   serverId: number,
 ): Promise<ActiveSession[]> => {
   try {
-    const response = await fetch(`/api/Sessions?serverId=${serverId}`);
+    const response = await fetch(`/api/Sessions?serverId=${serverId}`, {
+      cache: "no-store",
+    });
     if (!response.ok) {
-      if (response.status >= 500) {
-        throw new Error("Server error - Jellyfin server may be down");
+      let errorPayload: unknown;
+      try {
+        errorPayload = await response.json();
+      } catch (_e) {
+        // ignore
       }
-      throw new Error(`Error fetching sessions: ${response.statusText}`);
+
+      const payloadObj =
+        typeof errorPayload === "object" && errorPayload !== null
+          ? (errorPayload as Record<string, unknown>)
+          : undefined;
+
+      const errorMessage =
+        typeof payloadObj?.error === "string"
+          ? payloadObj.error
+          : `Error fetching sessions: ${response.statusText || response.status}`;
+
+      const isJellyfinConnectivityIssue =
+        response.headers.get("x-server-connectivity-error") === "true" ||
+        payloadObj?.server_connectivity_issue === true;
+
+      const isDatabaseError =
+        response.headers.get("x-database-error") === "true" ||
+        payloadObj?.database_error === true;
+
+      toast.error(
+        isDatabaseError
+          ? "Database Error"
+          : isJellyfinConnectivityIssue
+            ? "Jellyfin Connectivity Issue"
+            : "Active Sessions Error",
+        {
+          id: "jellyfin-sessions-error",
+          description: errorMessage,
+          duration: Infinity,
+        },
+      );
+
+      return [];
     }
     const data = await response.json();
     if (!Array.isArray(data)) {
       console.error("Expected array but got:", data);
       return [];
     }
+
+    // On success, dismiss any previous session error toast.
+    toast.dismiss("jellyfin-sessions-error");
     return data as ActiveSession[];
   } catch (err) {
     console.error("Failed to fetch active sessions:", err);
-    toast.error("Jellyfin Connectivity Issue", {
+    toast.error("Active Sessions Error", {
       id: "jellyfin-sessions-error",
-      description: "Cannot retrieve active sessions from the Jellyfin server.",
-      duration: 5000,
+      description:
+        err instanceof Error
+          ? err.message
+          : "Cannot retrieve active sessions at this time.",
+      duration: Infinity,
     });
     return [];
   }

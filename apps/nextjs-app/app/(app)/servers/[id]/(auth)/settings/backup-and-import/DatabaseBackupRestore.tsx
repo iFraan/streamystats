@@ -1,5 +1,15 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Download,
+  Loader2,
+  Upload,
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,22 +21,17 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { fetch } from "@/lib/utils";
-import { useMutation } from "@tanstack/react-query";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Download,
-  Loader2,
-  Upload,
-} from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+
+interface DatabaseBackupRestoreProps {
+  serverId: number;
+  lastSyncCompleted: Date | null;
+}
 
 export default function DatabaseBackupRestore({
   serverId,
-}: {
-  serverId: number;
-}) {
+  lastSyncCompleted,
+}: DatabaseBackupRestoreProps) {
+  const hasCompletedInitialSync = lastSyncCompleted !== null;
   const [file, setFile] = useState<File | null>(null);
   const [importSuccess, setImportSuccess] = useState<{
     message: string;
@@ -116,11 +121,7 @@ export default function DatabaseBackupRestore({
           <CardDescription>
             Export or restore your playback session data.
             <br />
-            <b>
-              Only works with the new version of Streamystats. If you want to
-              import old Streamystats data please use legacy import at the
-              bottom.
-            </b>
+            <b>Only works with the new version of Streamystats.</b>
           </CardDescription>
         </CardHeader>
 
@@ -184,6 +185,7 @@ export default function DatabaseBackupRestore({
                 <Input
                   type="file"
                   accept=".json"
+                  disabled={!hasCompletedInitialSync}
                   onChange={(e) => {
                     setFile(e.target.files?.[0] ?? null);
                     setImportSuccess(null);
@@ -193,7 +195,9 @@ export default function DatabaseBackupRestore({
 
               <Button
                 onClick={() => importMutation.mutate()}
-                disabled={importMutation.isPending || !file}
+                disabled={
+                  importMutation.isPending || !file || !hasCompletedInitialSync
+                }
                 className="flex items-center gap-2"
               >
                 {importMutation.isPending ? (

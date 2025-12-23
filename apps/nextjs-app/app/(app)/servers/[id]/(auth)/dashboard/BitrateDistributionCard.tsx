@@ -1,24 +1,5 @@
 "use client";
 
-import {
-  CustomBarLabel,
-  CustomValueLabel,
-} from "@/components/ui/CustomBarLabel";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import type { ChartConfig } from "@/components/ui/chart";
-import type { NumericStat } from "@/lib/db/transcoding-statistics";
 import { ZapIcon } from "lucide-react";
 import React from "react";
 import {
@@ -29,6 +10,22 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CustomBarLabel } from "@/components/ui/CustomBarLabel";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import type { ChartConfig } from "@/components/ui/chart";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import type { NumericStat } from "@/lib/db/transcoding-statistics";
 
 interface BitrateDistributionCardProps {
   data: NumericStat;
@@ -110,8 +107,6 @@ export const BitrateDistributionCard = ({
 
   const mostCommonCategory =
     categoriesWithData.length > 0 ? categoriesWithData[0].range : "N/A";
-
-  const maxCount = Math.max(...bitrateData.map((d) => d.count));
 
   const total = bitrateData.reduce((sum, item) => sum + item.count, 0);
   const bitrateDataWithPercent: BitrateRangeWithPercent[] = bitrateData.map(

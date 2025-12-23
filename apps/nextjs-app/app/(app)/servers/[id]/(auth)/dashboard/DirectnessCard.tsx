@@ -1,9 +1,16 @@
 "use client";
 
+import { InfoIcon } from "lucide-react";
+import { useCallback } from "react";
 import {
-  CustomBarLabel,
-  CustomValueLabel,
-} from "@/components/ui/CustomBarLabel";
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { CustomBarLabel } from "@/components/ui/CustomBarLabel";
 import {
   Card,
   CardContent,
@@ -19,16 +26,6 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { DirectnessStat } from "@/lib/db/transcoding-statistics";
-import { InfoIcon } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 interface DirectnessCardProps {
   data: DirectnessStat[];
@@ -52,8 +49,6 @@ export const DirectnessCard = ({ data }: DirectnessCardProps) => {
     }))
     .filter((item) => item.count > 0);
 
-  const maxCount = Math.max(...directnessData.map((d) => d.count));
-
   const total = directnessData.reduce((sum, item) => sum + item.count, 0);
   const directnessDataWithPercent = directnessData.map((item) => ({
     ...item,
@@ -73,6 +68,39 @@ export const DirectnessCard = ({ data }: DirectnessCardProps) => {
     );
   };
 
+  const renderBarLabel = useCallback(
+    ({
+      x,
+      y,
+      width,
+      height,
+      value,
+    }: {
+      x?: number | string;
+      y?: number | string;
+      width?: number | string;
+      height?: number | string;
+      value?: unknown;
+    }) => (
+      <CustomBarLabel
+        x={Number(x)}
+        y={Number(y)}
+        width={Number(width)}
+        height={Number(height)}
+        value={
+          typeof value === "string" || typeof value === "number"
+            ? value
+            : undefined
+        }
+        fill="#d6e3ff"
+        fontSize={12}
+        containerWidth={400}
+        alwaysOutside
+      />
+    ),
+    [],
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -87,58 +115,41 @@ export const DirectnessCard = ({ data }: DirectnessCardProps) => {
           config={directnessConfig}
           className="h-[200px]"
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              accessibilityLayer
-              data={directnessDataWithPercent}
+          <BarChart
+            accessibilityLayer
+            data={directnessDataWithPercent}
+            layout="vertical"
+            margin={{
+              right: 16,
+              left: 0,
+              top: 5,
+              bottom: 5,
+            }}
+            barSize={getBarHeight(directnessData.length)}
+          >
+            <CartesianGrid horizontal={false} />
+            <YAxis
+              dataKey="name"
+              type="category"
+              tickLine={false}
+              tickMargin={10}
+              axisLine={false}
+              hide
+            />
+            <XAxis dataKey="count" type="number" hide />
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent indicator="line" />}
+            />
+            <Bar
+              dataKey="count"
               layout="vertical"
-              margin={{
-                right: 16,
-                left: 0,
-                top: 5,
-                bottom: 5,
-              }}
-              barSize={getBarHeight(directnessData.length)}
+              radius={4}
+              className="fill-blue-600"
             >
-              <CartesianGrid horizontal={false} />
-              <YAxis
-                dataKey="name"
-                type="category"
-                tickLine={false}
-                tickMargin={10}
-                axisLine={false}
-                hide
-              />
-              <XAxis dataKey="count" type="number" hide />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent indicator="line" />}
-              />
-              <Bar
-                dataKey="count"
-                layout="vertical"
-                radius={4}
-                className="fill-blue-600"
-              >
-                <LabelList
-                  dataKey="labelWithPercent"
-                  content={({ x, y, width, height, value }) => (
-                    <CustomBarLabel
-                      x={Number(x)}
-                      y={Number(y)}
-                      width={Number(width)}
-                      height={Number(height)}
-                      value={value}
-                      fill="#d6e3ff"
-                      fontSize={12}
-                      containerWidth={400}
-                      alwaysOutside
-                    />
-                  )}
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              <LabelList dataKey="labelWithPercent" content={renderBarLabel} />
+            </Bar>
+          </BarChart>
         </ChartContainer>
       </CardContent>
       <CardFooter className="text-sm text-muted-foreground">

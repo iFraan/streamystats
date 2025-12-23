@@ -1,9 +1,9 @@
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { Container } from "@/components/Container";
 import { getServerLocationStats } from "@/lib/db/locations";
 import { getServer } from "@/lib/db/server";
 import { getUsers, isUserAdmin } from "@/lib/db/users";
-import { redirect } from "next/navigation";
-import { Suspense } from "react";
 import { SecurityFilters } from "./_components/SecurityFilters";
 import { SecurityHeader } from "./_components/SecurityHeader";
 import { SecurityStats } from "./_components/SecurityStats";

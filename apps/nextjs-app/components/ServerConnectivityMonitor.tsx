@@ -1,9 +1,9 @@
 "use client";
 
-import { fetch } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { fetch } from "@/lib/utils";
 
 type ServerError = {
   serverId: number;
@@ -90,7 +90,7 @@ export function ServerConnectivityMonitor() {
         if (data?.servers) {
           setServerErrors(data.servers);
         }
-      } catch (e) {
+      } catch (_e) {
         // JSON parsing error, ignore
       }
 

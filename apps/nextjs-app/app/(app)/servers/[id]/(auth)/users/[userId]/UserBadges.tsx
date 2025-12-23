@@ -1,8 +1,8 @@
 "use client";
 
+import type React from "react";
 import { Badge } from "@/components/ui/badge";
 import type { User } from "@/lib/types";
-import type React from "react";
 
 interface UserBadgesProps {
   user: User;

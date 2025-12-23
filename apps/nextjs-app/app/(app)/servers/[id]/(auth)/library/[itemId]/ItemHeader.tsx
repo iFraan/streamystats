@@ -1,10 +1,5 @@
 "use client";
 
-import { Poster } from "@/app/(app)/servers/[id]/(auth)/dashboard/Poster";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { formatDuration } from "@/lib/utils";
 import type { Item, Server } from "@streamystats/database/schema";
 import {
   ArrowLeft,
@@ -16,6 +11,11 @@ import {
   Tv,
 } from "lucide-react";
 import Link from "next/link";
+import { Poster } from "@/app/(app)/servers/[id]/(auth)/dashboard/Poster";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { formatDuration } from "@/lib/utils";
 import type { ItemDetailsResponse } from "./types";
 
 interface ItemHeaderProps {

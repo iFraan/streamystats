@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import {
   AlertTriangle,
   Check,
@@ -12,6 +11,7 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 type Props = Readonly<{
   error: Error & { digest?: string };

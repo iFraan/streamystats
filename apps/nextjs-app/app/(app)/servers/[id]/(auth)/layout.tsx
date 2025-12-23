@@ -1,3 +1,6 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { type PropsWithChildren, Suspense } from "react";
 import { ChatDialogWrapper } from "@/components/ChatDialogWrapper";
 import { DynamicBreadcrumbs } from "@/components/DynamicBreadcrumbs";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -15,9 +18,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { getServer, getServers } from "@/lib/db/server";
 import { getMe, isUserAdmin } from "@/lib/db/users";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { type PropsWithChildren, Suspense } from "react";
 
 interface Props extends PropsWithChildren {
   params: Promise<{ id: string }>;

@@ -1,5 +1,7 @@
 "use client";
 
+import { Filter } from "lucide-react";
+import type { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,8 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { User } from "@/lib/types";
-import { Filter } from "lucide-react";
-import type { Dispatch, SetStateAction } from "react";
 
 interface UserLeaderboardFilterProps {
   users: User[];

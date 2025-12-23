@@ -1,5 +1,5 @@
-import { getServers } from "@/lib/server";
 import { redirect } from "next/navigation";
+import { getServers } from "@/lib/server";
 
 export default async function Home() {
   console.log("[DEBUG] Home page: Starting server check");

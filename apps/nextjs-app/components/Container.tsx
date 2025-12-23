@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils";
 import type React from "react";
 import type { PropsWithChildren } from "react";
+import { cn } from "@/lib/utils";
 
 type Props = React.HTMLAttributes<HTMLDivElement>;
 

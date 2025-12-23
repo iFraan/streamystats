@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 /**
  * Hook for managing query parameters in the URL with Suspense support
  */
-export function useQueryParams<T = unknown>() {
+export function useQueryParams<_T = unknown>() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();

@@ -1,8 +1,8 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { Container } from "@/components/Container";
 import { getServer } from "@/lib/db/server";
-import { redirect } from "next/navigation";
 import { EmbeddingsManager } from "../EmbeddingsManager";
 
 export default async function AISettings(props: {

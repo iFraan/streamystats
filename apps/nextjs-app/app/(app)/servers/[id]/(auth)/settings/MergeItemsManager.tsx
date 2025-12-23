@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle,
+  GitMerge,
+  Loader,
+} from "lucide-react";
+import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -23,14 +31,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Item, Server } from "@/lib/types";
 import { fetch } from "@/lib/utils";
-import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle,
-  GitMerge,
-  Loader,
-} from "lucide-react";
-import { useState } from "react";
 import { Poster } from "../dashboard/Poster";
 
 interface MergeItemsManagerProps {

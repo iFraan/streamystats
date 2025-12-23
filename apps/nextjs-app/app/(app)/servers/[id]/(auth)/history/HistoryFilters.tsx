@@ -1,8 +1,12 @@
 "use client";
 
+import { format, isValid, parseISO } from "date-fns";
+import { CalendarIcon, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import * as React from "react";
+import type { DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -17,11 +21,6 @@ import {
 } from "@/components/ui/select";
 import { useQueryParams } from "@/hooks/useQueryParams";
 import { cn } from "@/lib/utils";
-import { format, isValid, parseISO } from "date-fns";
-import { CalendarIcon, X } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import * as React from "react";
-import type { DateRange } from "react-day-picker";
 
 const DATE_PARAM_FORMAT = "yyyy-MM-dd";
 

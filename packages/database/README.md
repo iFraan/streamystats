@@ -74,6 +74,7 @@ packages/database/
 - **Never edit migration files** after they've been committed
 - **Always review generated migrations** before applying
 - **Test migrations** on a local database first
+- If you see `FATAL:  role "root" does not exist` in Postgres logs, something is connecting with user `root` (typically missing/incorrect `DATABASE_URL`, or `POSTGRES_USER` changed after the DB volume was initialized).
 - The `scripts/` folder contains development utilities that are NOT used in production
 
 ## Common Commands

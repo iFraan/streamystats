@@ -1,5 +1,10 @@
 "use client";
 
+import type { Server } from "@streamystats/database";
+import { EyeOffIcon, Link2, type LucideIcon, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Poster } from "@/app/(app)/servers/[id]/(auth)/dashboard/Poster";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,11 +15,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { Server } from "@streamystats/database";
-import { EyeOffIcon, Link2, type LucideIcon, TrendingUp } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import type {
   RecommendationCardItem,
   RecommendationListItem,

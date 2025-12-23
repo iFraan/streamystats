@@ -1,5 +1,15 @@
 "use client";
 
+import { InfoIcon } from "lucide-react";
+import React from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { CustomBarLabel } from "@/components/ui/CustomBarLabel";
 import {
   Card,
@@ -17,16 +27,6 @@ import {
 } from "@/components/ui/chart";
 import type { ClientStat } from "@/lib/db/client-statistics";
 import { formatDuration } from "@/lib/utils";
-import { InfoIcon } from "lucide-react";
-import React from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 interface ClientUsageCardProps {
   data: ClientStat[];

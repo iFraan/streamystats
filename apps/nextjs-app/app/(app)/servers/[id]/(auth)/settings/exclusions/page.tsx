@@ -1,8 +1,8 @@
+import { redirect } from "next/navigation";
 import { Container } from "@/components/Container";
 import { getLibraries } from "@/lib/db/libraries";
 import { getServer } from "@/lib/db/server";
 import { getUsers, isUserAdmin } from "@/lib/db/users";
-import { redirect } from "next/navigation";
 import { ExcludedLibrariesManager } from "./ExcludedLibrariesManager";
 import { ExcludedUsersManager } from "./ExcludedUsersManager";
 

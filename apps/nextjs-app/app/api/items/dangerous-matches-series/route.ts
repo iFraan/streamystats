@@ -1,6 +1,6 @@
-import { requireAdmin } from "@/lib/api-auth";
 import { db, items, sessions } from "@streamystats/database";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { requireAdmin } from "@/lib/api-auth";
 
 interface DeletedEpisode {
   id: string;
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const serverIdNum = Number.parseInt(serverId);
+    const serverIdNum = Number.parseInt(serverId, 10);
     if (Number.isNaN(serverIdNum)) {
       return new Response(
         JSON.stringify({

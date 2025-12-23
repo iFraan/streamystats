@@ -7,7 +7,6 @@ import {
   ResponsiveContainer,
   XAxis,
 } from "recharts";
-
 import {
   Card,
   CardContent,
@@ -23,9 +22,8 @@ import {
 } from "@/components/ui/chart";
 import type { WatchTimePerWeekDay } from "@/lib/db/users";
 import { formatDuration } from "@/lib/utils";
-import { useMemo } from "react";
 
-const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const _dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const chartConfig = {
   total_duration: {

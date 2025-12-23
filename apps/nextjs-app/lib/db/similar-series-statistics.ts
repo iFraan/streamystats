@@ -2,13 +2,14 @@
 
 import { db } from "@streamystats/database";
 import {
-  type Item,
   hiddenRecommendations,
+  type Item,
   items,
   sessions,
 } from "@streamystats/database/schema";
 import {
   and,
+  cosineDistance,
   count,
   desc,
   eq,
@@ -18,7 +19,6 @@ import {
   notInArray,
   sql,
 } from "drizzle-orm";
-import { cosineDistance } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { getExclusionSettings } from "./exclusions";
 import { getMe } from "./users";

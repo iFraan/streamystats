@@ -1,8 +1,8 @@
 "use server";
 
-import { shouldUseSecureCookies } from "@/lib/secure-cookies";
-import { type JWTPayload, SignJWT, jwtVerify } from "jose";
+import { type JWTPayload, jwtVerify, SignJWT } from "jose";
 import { cookies } from "next/headers";
+import { shouldUseSecureCookies } from "@/lib/secure-cookies";
 
 const SECRET = new TextEncoder().encode(
   process.env.SESSION_SECRET || "fallback-dev-secret-change-in-production",
@@ -88,7 +88,6 @@ export async function destroySession(): Promise<void> {
   c.delete(SESSION_COOKIE);
   c.delete("streamystats-token");
   c.delete("streamystats-user");
-  c.delete("show-admin-statistics");
 }
 
 /**

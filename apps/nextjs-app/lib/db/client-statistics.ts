@@ -3,14 +3,13 @@
 
 import { db, sessions, users } from "@streamystats/database";
 import {
-  type SQL,
   and,
   count,
   eq,
   gte,
   isNotNull,
   lte,
-  notInArray,
+  type SQL,
   sql,
   sum,
 } from "drizzle-orm";

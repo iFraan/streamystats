@@ -1,6 +1,6 @@
-import { requireAdmin } from "@/lib/api-auth";
 import { db, items } from "@streamystats/database";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { requireAdmin } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
   try {
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const serverIdNum = Number.parseInt(serverId);
+    const serverIdNum = Number.parseInt(serverId, 10);
     if (Number.isNaN(serverIdNum)) {
       return new Response(
         JSON.stringify({

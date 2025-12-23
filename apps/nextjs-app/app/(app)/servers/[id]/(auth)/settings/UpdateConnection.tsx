@@ -1,5 +1,7 @@
 "use client";
 
+import { Settings } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -7,8 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Settings } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 interface UpdateConnectionProps {
   serverId: number;

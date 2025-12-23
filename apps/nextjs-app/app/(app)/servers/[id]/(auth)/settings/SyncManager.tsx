@@ -1,5 +1,7 @@
 "use client";
 
+import { AlertTriangle, CheckCircle, Database, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,15 +12,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { fetch } from "@/lib/utils";
-import { AlertTriangle, CheckCircle, Database, RefreshCw } from "lucide-react";
-import { useState } from "react";
 
 interface SyncManagerProps {
   serverId: number;
   serverName: string;
 }
 
-export function SyncManager({ serverId, serverName }: SyncManagerProps) {
+export function SyncManager({ serverId }: SyncManagerProps) {
   const [isTriggering, setIsTriggering] = useState(false);
   const [lastSyncResult, setLastSyncResult] = useState<{
     success: boolean;

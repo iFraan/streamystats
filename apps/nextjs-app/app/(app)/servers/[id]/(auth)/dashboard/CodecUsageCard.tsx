@@ -1,5 +1,15 @@
 "use client";
 
+import { FileDigit } from "lucide-react";
+import React from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { CustomBarLabel } from "@/components/ui/CustomBarLabel";
 import {
   Card,
@@ -16,16 +26,6 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { CategoryStat } from "@/lib/db/transcoding-statistics";
-import { FileDigit } from "lucide-react";
-import React from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 export const CodecUsageCard = ({
   videoCodecs,
@@ -65,8 +65,6 @@ export const CodecUsageCard = ({
       maxHeightPerBar,
     );
   };
-
-  const maxCount = Math.max(...codecData.map((d) => d.count));
 
   const total = codecData.reduce((sum, item) => sum + item.count, 0);
   const totalVideoCodec = videoCodecs.reduce(

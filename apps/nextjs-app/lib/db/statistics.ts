@@ -1,14 +1,13 @@
 "use cache";
 
 import {
-  type Item,
   db,
+  type Item,
   items,
   libraries,
   sessions,
 } from "@streamystats/database";
 import {
-  type SQL,
   and,
   count,
   desc,
@@ -17,7 +16,7 @@ import {
   inArray,
   isNotNull,
   lte,
-  notInArray,
+  type SQL,
   sql,
   sum,
 } from "drizzle-orm";
@@ -319,7 +318,7 @@ export async function getWatchTimePerType({
 
   const statistics: WatchTimePerType = {};
 
-  for (const [key, result] of groupedResults) {
+  for (const [_key, result] of groupedResults) {
     if (result.date && result.type) {
       // Normalize type: map Episode to episode, Movie to movie, Audio to music, everything else to other
       let normalizedType: string;

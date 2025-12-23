@@ -1,10 +1,10 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { type JobEvent, useJobEvents } from "@/hooks/useJobEvents";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { type JobEvent, useJobEvents } from "@/hooks/useJobEvents";
 
 interface SecuritySyncButtonProps {
   serverId: number;

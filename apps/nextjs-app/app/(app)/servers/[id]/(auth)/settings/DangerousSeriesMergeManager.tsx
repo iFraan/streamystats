@@ -1,5 +1,15 @@
 "use client";
 
+import {
+  AlertTriangle,
+  CheckCircle,
+  ChevronDown,
+  ChevronRight,
+  Loader,
+  Trash2,
+  Tv,
+} from "lucide-react";
+import { useCallback, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,16 +36,6 @@ import {
 } from "@/components/ui/dialog";
 import type { Server } from "@/lib/types";
 import { fetch } from "@/lib/utils";
-import {
-  AlertTriangle,
-  CheckCircle,
-  ChevronDown,
-  ChevronRight,
-  Loader,
-  Trash2,
-  Tv,
-} from "lucide-react";
-import { useCallback, useState } from "react";
 
 interface DangerousSeriesMergeManagerProps {
   server: Server;

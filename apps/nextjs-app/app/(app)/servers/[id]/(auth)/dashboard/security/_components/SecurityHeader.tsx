@@ -1,5 +1,5 @@
-import { SecuritySyncButton } from "@/components/SecuritySyncButton";
 import { BarChart2 } from "lucide-react";
+import { SecuritySyncButton } from "@/components/SecuritySyncButton";
 
 interface SecurityHeaderProps {
   serverId: number;

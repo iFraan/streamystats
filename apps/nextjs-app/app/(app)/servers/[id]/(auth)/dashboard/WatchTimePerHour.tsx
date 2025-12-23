@@ -1,7 +1,5 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
 import * as React from "react";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 
@@ -35,7 +33,7 @@ interface Props {
   data: IWatchTimePerHour[];
 }
 
-const TIMEZONE = process.env.TZ || "Etc/UTC";
+const _TIMEZONE = process.env.TZ || "Etc/UTC";
 
 export const WatchTimePerHour: React.FC<Props> = ({
   title,

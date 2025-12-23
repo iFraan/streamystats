@@ -68,6 +68,10 @@ exports.servers = (0, pg_core_1.pgTable)("servers", {
     // Users and libraries in these arrays will be hidden from all statistics
     excludedUserIds: (0, pg_core_1.text)("excluded_user_ids").array().default([]),
     excludedLibraryIds: (0, pg_core_1.text)("excluded_library_ids").array().default([]),
+    // Embedding job control - set to true to stop a running embedding job
+    embeddingStopRequested: (0, pg_core_1.boolean)("embedding_stop_requested")
+        .notNull()
+        .default(false),
     createdAt: (0, pg_core_1.timestamp)("created_at").defaultNow().notNull(),
     updatedAt: (0, pg_core_1.timestamp)("updated_at").defaultNow().notNull(),
 }, (table) => [(0, pg_core_1.unique)("servers_url_unique").on(table.url)]);

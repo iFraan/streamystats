@@ -1,8 +1,8 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 
 interface SecurityTabsProps {
   stats: {

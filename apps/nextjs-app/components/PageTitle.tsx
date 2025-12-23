@@ -1,4 +1,4 @@
-import { AArrowDown, BarChart2 } from "lucide-react";
+import { BarChart2 } from "lucide-react";
 
 interface PageTitleProps {
   title: string;

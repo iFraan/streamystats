@@ -1,10 +1,10 @@
 "use client";
 
-import type { Server } from "@/lib/types";
 import { Film, Tv } from "lucide-react";
 import Image from "next/image";
 import { memo, useEffect, useMemo, useState } from "react";
 import { Blurhash } from "react-blurhash";
+import type { Server } from "@/lib/types";
 import type { RecommendationCardItem } from "./recommendation-types";
 
 // Define the possible image types that can be requested

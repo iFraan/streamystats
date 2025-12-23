@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  AlertTriangle,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader,
+} from "lucide-react";
+import { useCallback, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,14 +36,6 @@ import {
 } from "@/components/ui/table";
 import type { Server } from "@/lib/types";
 import { fetch } from "@/lib/utils";
-import {
-  AlertTriangle,
-  CheckCircle,
-  ChevronLeft,
-  ChevronRight,
-  Loader,
-} from "lucide-react";
-import { useCallback, useState } from "react";
 
 const ITEMS_PER_PAGE = 25;
 

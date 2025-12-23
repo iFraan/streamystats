@@ -1,7 +1,7 @@
 "use server";
 
-import { shouldUseSecureCookies } from "@/lib/secure-cookies";
 import { cookies } from "next/headers";
+import { shouldUseSecureCookies } from "@/lib/secure-cookies";
 import { getServer } from "./db/server";
 import { createSession } from "./session";
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
+import { useTransition } from "react";
 import { AnomalyList } from "@/components/locations/AnomalyList";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,8 +19,6 @@ import {
   resolveAnomaly,
   unresolveAnomaly,
 } from "@/lib/db/locations";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
 
 interface AnomaliesContentProps {
   serverId: number;
@@ -39,7 +39,7 @@ export function AnomaliesContent({
 }: AnomaliesContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+  const [_isPending, startTransition] = useTransition();
 
   // Subscribe to real-time security events
   useSecurityEvents(serverId);

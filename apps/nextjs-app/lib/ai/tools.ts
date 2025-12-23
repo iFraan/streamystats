@@ -1,14 +1,3 @@
-import { getHistoryByFilters } from "@/lib/db/history";
-import {
-  getSimilarItemsForItem,
-  getSimilarStatistics,
-} from "@/lib/db/similar-statistics";
-import { getMostWatchedItems } from "@/lib/db/statistics";
-import {
-  getUserStatsSummaryForServer,
-  getUserWatchStats,
-  getUsers,
-} from "@/lib/db/users";
 import {
   db,
   items,
@@ -30,6 +19,17 @@ import {
   sql,
 } from "drizzle-orm";
 import { z } from "zod";
+import { getHistoryByFilters } from "@/lib/db/history";
+import {
+  getSimilarItemsForItem,
+  getSimilarStatistics,
+} from "@/lib/db/similar-statistics";
+import { getMostWatchedItems } from "@/lib/db/statistics";
+import {
+  getUserStatsSummaryForServer,
+  getUsers,
+  getUserWatchStats,
+} from "@/lib/db/users";
 
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);

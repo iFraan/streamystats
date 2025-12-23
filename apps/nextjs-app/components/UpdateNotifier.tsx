@@ -1,8 +1,8 @@
 "use client";
 
-import { fetch } from "@/lib/utils";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { toast, useSonner } from "sonner";
+import { fetch } from "@/lib/utils";
 
 interface VersionInfo {
   currentVersion: string;

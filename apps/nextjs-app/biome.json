@@ -1,19 +1,18 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "organizeImports": {
-    "enabled": true
-  },
+  "$schema": "https://biomejs.dev/schemas/2.3.10/schema.json",
   "files": {
-    "ignore": [
-      "node_modules",
-      "**/node_modules/**",
-      ".husky",
-      ".expo",
-      ".github",
-      ".vscode",
-      "dist",
-      "server",
-      ".next"
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/.next",
+      "!**/.husky",
+      "!**/.expo",
+      "!**/.github",
+      "!**/.vscode",
+      "!**/dist",
+      "!**/server",
+      "!**/components/ui",
+      "!**/components/ai-elements"
     ]
   },
   "linter": {
@@ -24,7 +23,11 @@
         "noNonNullAssertion": "off"
       },
       "recommended": true,
-      "correctness": { "useExhaustiveDependencies": "off" },
+      "correctness": {
+        "useExhaustiveDependencies": "off",
+        "noUnusedVariables": "off",
+        "noUnusedFunctionParameters": "off"
+      },
       "suspicious": {
         "noExplicitAny": "off",
         "noArrayIndexKey": "off"
@@ -54,6 +57,14 @@
   "json": {
     "formatter": {
       "trailingCommas": "none"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    },
+    "linter": {
+      "enabled": false
     }
   }
 }

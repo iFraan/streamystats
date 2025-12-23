@@ -1,9 +1,9 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useQueryParams } from "@/hooks/useQueryParams";
 import { Film, Folder, PlaySquare, Tv, Users } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQueryParams } from "@/hooks/useQueryParams";
 
 interface Props {
   data: AggregatedLibraryStatistics;

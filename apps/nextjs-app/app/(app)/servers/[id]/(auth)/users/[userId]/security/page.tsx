@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { Container } from "@/components/Container";
 import { PageTitle } from "@/components/PageTitle";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,6 @@ import {
 } from "@/lib/db/locations";
 import { getServer } from "@/lib/db/server";
 import { getUserById } from "@/lib/db/users";
-import { redirect } from "next/navigation";
 import { UserSecurityContent } from "./UserSecurityContent";
 
 export default async function UserSecurityPage({

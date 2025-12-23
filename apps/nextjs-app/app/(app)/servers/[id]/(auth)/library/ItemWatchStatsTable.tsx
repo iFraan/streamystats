@@ -1,5 +1,23 @@
 "use client";
 
+import {
+  type Cell,
+  type ColumnDef,
+  type ColumnFiltersState,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  type Row,
+  type SortingState,
+  useReactTable,
+  type VisibilityState,
+} from "@tanstack/react-table";
+import { ArrowUpDown, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import * as React from "react";
+import { useDebounce } from "use-debounce";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,26 +35,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useQueryParams } from "@/hooks/useQueryParams";
-import { formatDuration } from "@/lib/utils";
-import {
-  type Cell,
-  type ColumnDef,
-  type ColumnFiltersState,
-  type Row,
-  type SortingState,
-  type VisibilityState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { useRouter } from "nextjs-toploader/app";
-import * as React from "react";
-import { useDebounce } from "use-debounce";
 
 import type {
   ItemWatchStats,
@@ -44,7 +42,7 @@ import type {
   Library,
   Server,
 } from "@/lib/types";
-import Link from "next/link";
+import { formatDuration } from "@/lib/utils";
 import { Poster } from "../dashboard/Poster";
 import LibraryDropdown from "./LibraryDropdown";
 
@@ -59,7 +57,6 @@ export function ItemWatchStatsTable({
   data,
   libraries,
 }: ItemWatchStatsTableProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   // Get current values from URL query params
@@ -417,8 +414,8 @@ export function ItemWatchStatsTable({
 const MemoizedTableRow = React.memo(
   ({
     row,
-    server,
-    columns,
+    server: _server,
+    columns: _columns,
   }: {
     row: Row<ItemWatchStats>;
     server: Server;

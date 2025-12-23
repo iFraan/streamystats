@@ -65,6 +65,11 @@ RUN --mount=type=cache,target=/app/apps/nextjs-app/.next/cache \
     bun --bun next build --experimental-build-mode compile
 
 # ============================================
+# Node.js runtime (pinned)
+# ============================================
+FROM node:24-bookworm-slim AS node-runtime
+
+# ============================================
 # Production runtime - Based on VectorChord PostgreSQL
 # ============================================
 FROM tensorchord/vchord-postgres:pg17-v0.4.1 AS runner
@@ -78,9 +83,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Bun runtime
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:$PATH"
+# Copy Node.js runtime (pinned)
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 
 WORKDIR /app
 

@@ -1,11 +1,3 @@
-import { Container } from "@/components/Container";
-import { PageTitle } from "@/components/PageTitle";
-import { ResponsiveFingerprint } from "@/components/TasteFingerprint";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getServer } from "@/lib/db/server";
-import { getUserTasteProfile } from "@/lib/db/taste-profile";
-import { getUserById } from "@/lib/db/users";
-import { formatDuration } from "@/lib/utils";
 import {
   Clock,
   Film,
@@ -15,6 +7,14 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { redirect } from "next/navigation";
+import { Container } from "@/components/Container";
+import { PageTitle } from "@/components/PageTitle";
+import { ResponsiveFingerprint } from "@/components/TasteFingerprint";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getServer } from "@/lib/db/server";
+import { getUserTasteProfile } from "@/lib/db/taste-profile";
+import { getUserById } from "@/lib/db/users";
+import { formatDuration } from "@/lib/utils";
 
 export default async function FingerprintPage({
   params,

@@ -1,0 +1,1 @@
+ALTER TABLE "servers" ADD COLUMN "embedding_stop_requested" boolean DEFAULT false NOT NULL;

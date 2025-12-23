@@ -9,10 +9,10 @@ import {
 } from "@/components/ui/card";
 import type { ClientStatisticsResponse } from "@/lib/db/client-statistics";
 import { ClientBreakdownCard } from "./ClientBreakdownCard";
-import { ClientTranscodingCard } from "./ClientTranscodingCard";
-import { ClientUsageCard } from "./ClientUsageCard";
 import { ClientsPerDeviceCard } from "./ClientsPerDeviceCard";
 import { ClientsPerUserCard } from "./ClientsPerUserCard";
+import { ClientTranscodingCard } from "./ClientTranscodingCard";
+import { ClientUsageCard } from "./ClientUsageCard";
 import { MostPopularClientsCard } from "./MostPopularClientsCard";
 
 export const ClientStatistics = ({

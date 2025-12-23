@@ -1,7 +1,7 @@
-import { basePath } from "@/lib/utils";
 import { jwtVerify } from "jose";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { basePath } from "@/lib/utils";
 import { getServer } from "./lib/db/server";
 import { getServers } from "./lib/server";
 
@@ -78,7 +78,7 @@ const ADMIN_ONLY_SUB_PATHS: Record<string, string[]> = {
 const ADMIN_ONLY_USER_SUB_PATHS = ["security"];
 const PUBLIC_PATHS = ["login", "reconnect"];
 
-const BASE_PATH_REGEX = basePath.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&");
+const BASE_PATH_REGEX = basePath.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 
 /**
  * Parse URL pathname to extract server ID, page, and user name

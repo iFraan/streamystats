@@ -132,7 +132,7 @@ interface JellystatsSession {
 }
 
 export async function importFromJellystats(
-  prevState: ImportState,
+  _prevState: ImportState,
   formData: FormData,
 ): Promise<ImportState> {
   try {
@@ -223,7 +223,7 @@ export async function importFromJellystats(
         // Determine item ID based on type - can be null for deleted items
         const itemId = session.EpisodeId || session.NowPlayingItemId || null;
         const itemName = session.NowPlayingItemName || null;
-        const itemType = session.EpisodeId ? "Episode" : "Movie";
+        const _itemType = session.EpisodeId ? "Episode" : "Movie";
 
         // Extract media info
         const videoStream = session.MediaStreams?.find(

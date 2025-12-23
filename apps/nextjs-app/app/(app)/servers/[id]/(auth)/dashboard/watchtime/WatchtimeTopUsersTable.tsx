@@ -1,3 +1,5 @@
+import type { Server } from "@streamystats/database/schema";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -9,8 +11,6 @@ import {
 } from "@/components/ui/table";
 import type { UserStatsSummary } from "@/lib/db/users";
 import { formatDuration } from "@/lib/utils";
-import type { Server } from "@streamystats/database/schema";
-import Link from "next/link";
 
 function filterAndLimitTopUsers(users: UserStatsSummary[]): UserStatsSummary[] {
   return users

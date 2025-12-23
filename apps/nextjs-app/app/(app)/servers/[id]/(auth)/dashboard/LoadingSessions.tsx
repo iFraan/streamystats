@@ -1,5 +1,6 @@
 "use client";
 
+import { MonitorPlay } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -8,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MonitorPlay } from "lucide-react";
 
 export default function LoadingSessions() {
   return (

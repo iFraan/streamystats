@@ -1,6 +1,6 @@
+import { redirect } from "next/navigation";
 import { Container } from "@/components/Container";
 import { getServer } from "@/lib/db/server";
-import { redirect } from "next/navigation";
 import { HolidaySettingsManager } from "../HolidaySettingsManager";
 
 export default async function SeasonalRecommendationsSettings(props: {

@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     }
 
     const libraries = await getLibraries({
-      serverId: Number.parseInt(serverId),
+      serverId: Number.parseInt(serverId, 10),
     });
 
     return new Response(

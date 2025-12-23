@@ -1,5 +1,8 @@
 "use client";
 
+import { Fingerprint, Globe, Smartphone } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import {
   ActivityHeatmap,
   type LocationPoint,
@@ -22,9 +25,6 @@ import type {
   UserFingerprint,
 } from "@/lib/db/locations";
 import { resolveAnomaly, unresolveAnomaly } from "@/lib/db/locations";
-import { Fingerprint, Globe, Smartphone } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 
 interface UserSecurityContentProps {
   serverId: number;
@@ -39,7 +39,7 @@ interface UserSecurityContentProps {
 
 export function UserSecurityContent({
   serverId,
-  userId,
+  userId: _userId,
   locations,
   locationHistory,
   fingerprint,
@@ -48,7 +48,7 @@ export function UserSecurityContent({
   weekHistogram,
 }: UserSecurityContentProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [_isPending, startTransition] = useTransition();
 
   const handleResolve = async (anomalyId: number, note?: string) => {
     await resolveAnomaly(serverId, anomalyId, { resolutionNote: note });

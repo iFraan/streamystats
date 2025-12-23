@@ -23,7 +23,7 @@ class SyncScheduler {
   private geolocationSyncInterval: string =
     Bun.env.CRON_GEOLOCATION_SYNC || "*/5 * * * *"; // Every 5 minutes
   private fingerprintSyncInterval: string =
-    Bun.env.CRON_FINGERPRINT_SYNC || "0 */6 * * *"; // Every 6 hours
+    Bun.env.CRON_FINGERPRINT_SYNC || "0 4 * * *"; // Daily at 4 AM
   private jobCleanupInterval: string =
     Bun.env.CRON_JOB_CLEANUP || "*/1 * * * *"; // Every minute
   private oldJobCleanupInterval: string =
@@ -576,13 +576,6 @@ class SyncScheduler {
           }
 
           if (!server.embeddingBaseUrl || !server.embeddingModel) {
-            continue;
-          }
-
-          if (
-            server.embeddingProvider === "openai-compatible" &&
-            !server.embeddingApiKey
-          ) {
             continue;
           }
 

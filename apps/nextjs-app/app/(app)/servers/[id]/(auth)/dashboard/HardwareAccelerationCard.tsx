@@ -1,5 +1,15 @@
 "use client";
 
+import { ZapIcon } from "lucide-react";
+import React from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { CustomBarLabel } from "@/components/ui/CustomBarLabel";
 import {
   Card,
@@ -16,16 +26,6 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { CategoryStat } from "@/lib/db/transcoding-statistics";
-import { ZapIcon } from "lucide-react";
-import React from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 type Props = {
   data: CategoryStat[];
@@ -83,8 +83,6 @@ export const HardwareAccelerationCard = ({ data }: Props) => {
       </Card>
     );
   }
-
-  const maxCount = Math.max(...hwAccelData.map((d) => d.count));
 
   const total = hwAccelData.reduce((sum, item) => sum + item.count, 0);
   const hwAccelDataWithPercent = hwAccelData.map((item) => ({

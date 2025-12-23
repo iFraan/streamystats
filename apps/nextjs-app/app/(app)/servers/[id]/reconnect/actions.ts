@@ -1,11 +1,11 @@
 "use server";
 
+import { cookies } from "next/headers";
 import {
   type UpdateServerConnectionResult,
   updateServerConnection,
 } from "@/lib/db/server";
 import { shouldUseSecureCookies } from "@/lib/secure-cookies";
-import { cookies } from "next/headers";
 
 export const updateServerConnectionAction = async ({
   serverId,
@@ -61,14 +61,6 @@ export const updateServerConnectionAction = async ({
           secure,
         },
       );
-
-      c.set("show-admin-statistics", result.isAdmin ? "true" : "false", {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge,
-        secure,
-      });
     }
 
     return result;

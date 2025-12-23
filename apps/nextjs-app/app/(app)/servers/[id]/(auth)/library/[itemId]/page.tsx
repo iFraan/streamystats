@@ -1,15 +1,14 @@
+import { redirect } from "next/navigation";
 import { Container } from "@/components/Container";
 import { getItemDetails, getSeasonsAndEpisodes } from "@/lib/db/items";
 import { getServer } from "@/lib/db/server";
-import { getSimilarSeriesForItem } from "@/lib/db/similar-series-statistics";
 import type { SeriesRecommendationItem } from "@/lib/db/similar-series-statistics";
+import { getSimilarSeriesForItem } from "@/lib/db/similar-series-statistics";
 import {
-  type RecommendationItem,
   getSimilarItemsForItem,
+  type RecommendationItem,
 } from "@/lib/db/similar-statistics";
-import { getMe } from "@/lib/db/users";
-import { showAdminStatistics } from "@/utils/adminTools";
-import { redirect } from "next/navigation";
+import { getMe, isUserAdmin } from "@/lib/db/users";
 import { ItemHeader } from "./ItemHeader";
 import { ItemMetadata } from "./ItemMetadata";
 import { SeasonsAndEpisodes } from "./SeasonsAndEpisodes";
@@ -27,12 +26,11 @@ export default async function ItemDetailsPage({
     redirect("/not-found");
   }
 
-  const me = await getMe();
-  const showAdmin = await showAdminStatistics();
+  const [me, isAdmin] = await Promise.all([getMe(), isUserAdmin()]);
 
   const itemDetails = await getItemDetails({
     itemId,
-    userId: showAdmin ? undefined : me?.id,
+    userId: isAdmin ? undefined : me?.id,
   });
 
   if (!itemDetails) {
@@ -66,7 +64,7 @@ export default async function ItemDetailsPage({
         <ItemMetadata
           item={itemDetails.item}
           statistics={itemDetails}
-          showAdminStats={showAdmin}
+          isAdmin={isAdmin}
           serverId={id}
           itemId={itemId}
         />

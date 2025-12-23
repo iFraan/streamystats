@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertCircle, AlertTriangle, Info, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -7,7 +8,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { AlertCircle, AlertTriangle, Info, ShieldAlert } from "lucide-react";
 
 interface AnomalyBadgeProps {
   count: number;

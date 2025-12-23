@@ -1,0 +1,1 @@
+DELETE FROM sessions WHERE play_duration < 0;

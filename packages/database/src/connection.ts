@@ -1,34 +1,81 @@
 import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import postgres, { type Sql } from "postgres";
 import * as dotenv from "dotenv";
 import * as schema from "./schema";
 
 // Ensure environment variables are loaded
-dotenv.config();
+dotenv.config({ quiet: true });
 
-const getConnectionString = () => {
-  return process.env.DATABASE_URL!;
+export const getDatabaseUrl = () => {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    // Important: if the connection string is missing, postgres-js falls back to
+    // PG* env vars and then the OS user. In root-run containers that becomes
+    // "root", leading to confusing errors like: `FATAL: role "root" does not exist`.
+    throw new Error(
+      'DATABASE_URL environment variable is missing. Set DATABASE_URL (e.g. "postgresql://postgres:postgres@host:5432/streamystats").',
+    );
+  }
+  return databaseUrl;
 };
 
-// Create postgres client with connection pooling for self-hosted environment
-const client = postgres(getConnectionString(), {
-  max: 20, // Maximum number of connections in the pool
-  idle_timeout: 20, // Close connections after 20 seconds of inactivity
-  max_lifetime: 60 * 30, // Maximum lifetime of a connection (30 minutes)
-  connect_timeout: 60,
+type Client = Sql<{}>;
+type Db = PostgresJsDatabase<typeof schema> & { $client: Client };
+
+const globalForDatabase = globalThis as unknown as {
+  streamystatsClient?: Client;
+  streamystatsDb?: Db;
+};
+
+// Lazily create the postgres client (avoid connecting during Next.js build/SSG)
+export const getClient = (): Client => {
+  if (!globalForDatabase.streamystatsClient) {
+    globalForDatabase.streamystatsClient = postgres(getDatabaseUrl(), {
+      max: 20, // Maximum number of connections in the pool
+      idle_timeout: 20, // Close connections after 20 seconds of inactivity
+      max_lifetime: 60 * 30, // Maximum lifetime of a connection (30 minutes)
+      connect_timeout: 60,
+    });
+  }
+  return globalForDatabase.streamystatsClient;
+};
+
+// Lazily create Drizzle database instance
+export const getDb = (): Db => {
+  if (!globalForDatabase.streamystatsDb) {
+    globalForDatabase.streamystatsDb = drizzle(getClient(), { schema });
+  }
+  return globalForDatabase.streamystatsDb;
+};
+
+// Backwards-compatible exports: these do NOT touch env/DB until first use.
+export const client: Client = new Proxy((() => {}) as unknown as Client, {
+  apply(_target, thisArg, args) {
+    return (getClient() as unknown as (...a: unknown[]) => unknown).apply(
+      thisArg,
+      args,
+    );
+  },
+  get(_target, prop) {
+    return (getClient() as never)[prop as never];
+  },
 });
 
-// Create Drizzle database instance
-export const db = drizzle(client, { schema });
-
-// Export the client for cleanup if needed
-export { client };
+export const db: Db = new Proxy({} as Db, {
+  get(_target, prop) {
+    return (getDb() as never)[prop as never];
+  },
+});
 
 // Graceful shutdown helper
 export const closeConnection = async () => {
   try {
-    await client.end();
-    console.log("Database connection closed successfully");
+    if (globalForDatabase.streamystatsClient) {
+      await globalForDatabase.streamystatsClient.end();
+      globalForDatabase.streamystatsClient = undefined;
+      globalForDatabase.streamystatsDb = undefined;
+    }
   } catch (error) {
     console.error("Error closing database connection:", error);
   }

@@ -1,11 +1,11 @@
-import { requireAdmin } from "@/lib/api-auth";
-import { getServer } from "@/lib/db/server";
 import { db, sessions } from "@streamystats/database";
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
+import { requireAdmin } from "@/lib/api-auth";
+import { getServer } from "@/lib/db/server";
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ serverId: string }> },
 ) {
   try {

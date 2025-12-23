@@ -1,5 +1,21 @@
 "use client";
 
+import { format, formatDistanceToNow } from "date-fns";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Eye,
+  Globe,
+  MapPin,
+  Monitor,
+  MoreHorizontal,
+  Navigation,
+  XCircle,
+} from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -32,22 +48,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { format, formatDistanceToNow } from "date-fns";
-import {
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Eye,
-  Globe,
-  MapPin,
-  Monitor,
-  MoreHorizontal,
-  Navigation,
-  XCircle,
-} from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
 import { AnomalySeverityBadge, AnomalyTypeBadge } from "./AnomalyBadge";
 
 interface AnomalyDetails {

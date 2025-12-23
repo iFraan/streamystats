@@ -40,9 +40,9 @@ Recommendations use vector similarity (cosine distance) to find content similar 
 ## Roadmap
 
 - [x] Individual item statistics
-- [ ] More statistics
-- [ ] Only sync certain libraries
-- [ ] More AI tools for better chat
+- [x] More statistics
+- [x] Only sync certain libraries
+- [x] More AI tools for better chat
 
 ## 🚀 Getting started
 
@@ -74,13 +74,13 @@ Docker is currently the easiest and recommended way to run streamystats. However
 
 ## 📸 Screenshots
 
-<img width="1545" alt="Screenshot 2024-11-06 at 21 29 48" src="https://github.com/user-attachments/assets/78c5843a-7dc4-4485-bfeb-841725b133e7">
-<img width="1545" alt="Screenshot 2024-11-06 at 21 30 01" src="https://github.com/user-attachments/assets/d2d4bf6d-85a0-4c6d-8e2b-19e876dc6579">
-<img width="1545" alt="Screenshot 2024-11-06 at 21 30 07" src="https://github.com/user-attachments/assets/1da33d70-5c26-4ce8-a753-06b08a409d17">
-<img width="1545" alt="Screenshot 2024-11-03 at 10 57 04" src="https://github.com/user-attachments/assets/3dbbc7b0-2f64-44de-9b0c-a524de1a660d">
-<img width="1545" alt="Screenshot 2024-11-03 at 10 57 35" src="https://github.com/user-attachments/assets/9dac59d8-54eb-4474-bc21-caf782492c14">
-<img width="356" alt="Screenshot 2024-11-03 at 10 57 43" src="https://github.com/user-attachments/assets/b5988b08-8ba6-4fca-99d2-8e221016fcc9">
-<img width="357" alt="Screenshot 2024-11-03 at 10 57 46" src="https://github.com/user-attachments/assets/34db1a56-dc05-4c87-b0c7-290e23be6d8c">
+<img width="1625" height="1083" alt="Screenshot 2025-12-23 at 11 46 07" src="https://github.com/user-attachments/assets/bcb5c90a-082e-40c2-b567-842ae6c61cf0" />
+<img width="1625" height="1083" alt="Screenshot 2025-12-23 at 11 49 35" src="https://github.com/user-attachments/assets/3c3276ad-93b2-479b-a783-a1f1a7c9afb3" />
+<img width="1625" height="1083" alt="Screenshot 2025-12-23 at 11 49 24" src="https://github.com/user-attachments/assets/37fd7b49-aba8-445a-9042-228aeb28b848" />
+<img width="1625" height="1083" alt="Screenshot 2025-12-23 at 11 47 52" src="https://github.com/user-attachments/assets/0e554541-9aa6-4147-b998-2b7e99e0f797" />
+<img width="1625" height="1083" alt="Screenshot 2025-12-23 at 11 47 44" src="https://github.com/user-attachments/assets/0c78b616-216b-4c94-8c6d-cd818d264f74" />
+<img width="1625" height="1083" alt="Screenshot 2025-12-23 at 11 46 32" src="https://github.com/user-attachments/assets/5628c261-adb5-4e25-9dc9-97b12d161897" />
+<img width="1625" height="1083" alt="Screenshot 2025-12-23 at 11 46 25" src="https://github.com/user-attachments/assets/79790df1-880a-47fb-8259-c22924343cb8" />
 
 ## 🛠️ Tech Stack
 

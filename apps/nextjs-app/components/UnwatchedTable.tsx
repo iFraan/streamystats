@@ -1,5 +1,8 @@
 "use client";
 
+import { ChevronDown, Search } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,9 +20,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Server } from "@/lib/types";
-import { ChevronDown, Search } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
 import {
   Pagination,
   PaginationContent,
@@ -56,7 +56,7 @@ interface UnwatchedTableProps {
   data: UnwatchedItemsResponse;
 }
 
-export function UnwatchedTable({ server, data }: UnwatchedTableProps) {
+export function UnwatchedTable({ server: _server, data }: UnwatchedTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -68,7 +68,7 @@ export function UnwatchedTable({ server, data }: UnwatchedTableProps) {
   const [page, setPage] = useState<number>(initialPage);
   const [type, setType] = useState<string>(initialType);
   const [search, setSearch] = useState<string>(initialSearch);
-  const [searchDebounce, setSearchDebounce] = useState<string>(initialSearch);
+  const [_searchDebounce, setSearchDebounce] = useState<string>(initialSearch);
 
   // Update URL when filters change
   useEffect(() => {

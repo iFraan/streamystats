@@ -1,4 +1,3 @@
-import { requireAdmin } from "@/lib/api-auth";
 import {
   db,
   hiddenRecommendations,
@@ -6,6 +5,7 @@ import {
   sessions,
 } from "@streamystats/database";
 import { and, eq, inArray } from "drizzle-orm";
+import { requireAdmin } from "@/lib/api-auth";
 
 interface MergePair {
   deletedItemId: string;

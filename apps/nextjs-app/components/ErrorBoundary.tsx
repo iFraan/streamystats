@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import {
   AlertTriangle,
   Check,
@@ -18,6 +17,7 @@ import React, {
   useCallback,
   useState,
 } from "react";
+import { Button } from "@/components/ui/button";
 
 interface ErrorDisplayProps {
   error?: Error;
@@ -220,7 +220,7 @@ class ErrorBoundary extends React.Component<
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+  componentDidCatch(_error: Error, errorInfo: ErrorInfo): void {
     // Avoid console.log in production - error is already captured in state
     void errorInfo;
   }

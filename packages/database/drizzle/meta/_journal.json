@@ -141,6 +141,20 @@
       "when": 1766309267500,
       "tag": "0019_soft_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1766358470539,
+      "tag": "0020_light_terror",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1766437242433,
+      "tag": "0021_dizzy_lady_mastermind",
+      "breakpoints": true
     }
   ]
 }

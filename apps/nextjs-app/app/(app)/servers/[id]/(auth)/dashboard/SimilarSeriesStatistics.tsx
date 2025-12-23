@@ -1,12 +1,12 @@
 "use client";
 
-import {
-  type SeriesRecommendationItem,
-  getSimilarSeries,
-  hideSeriesRecommendation,
-} from "@/lib/db/similar-series-statistics";
 import type { Server } from "@streamystats/database";
 import { Monitor } from "lucide-react";
+import {
+  getSimilarSeries,
+  hideSeriesRecommendation,
+  type SeriesRecommendationItem,
+} from "@/lib/db/similar-series-statistics";
 import { RecommendationsSection } from "./RecommendationsSection";
 
 interface Props {

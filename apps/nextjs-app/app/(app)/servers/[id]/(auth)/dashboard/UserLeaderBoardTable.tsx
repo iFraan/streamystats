@@ -1,5 +1,9 @@
 "use client";
 
+import type { Server, User } from "@streamystats/database";
+import { Clock, Trophy } from "lucide-react";
+import Link from "next/link";
+import { useMemo } from "react";
 import JellyfinAvatar from "@/components/JellyfinAvatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -12,10 +16,6 @@ import {
 } from "@/components/ui/table";
 import { usePersistantState } from "@/hooks/usePersistantState";
 import { formatDuration } from "@/lib/utils";
-import type { Server, User } from "@streamystats/database";
-import { Clock, Trophy } from "lucide-react";
-import Link from "next/link";
-import { useMemo } from "react";
 import { UserLeaderboardFilter } from "./UserLeaderBoardFilter";
 
 interface Props {

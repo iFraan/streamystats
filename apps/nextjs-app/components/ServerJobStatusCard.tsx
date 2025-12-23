@@ -1,5 +1,7 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { type JobEvent, useJobEvents } from "@/hooks/useJobEvents";
@@ -10,8 +12,6 @@ import {
   type ServerJobStatusResponse,
 } from "@/lib/types/job-status";
 import { fetch } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
 
 function getStateBadgeClass(state: ServerJobState): string {
   switch (state) {

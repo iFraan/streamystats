@@ -1,8 +1,8 @@
+import { redirect } from "next/navigation";
 import { Container } from "@/components/Container";
 import { ServerJobStatusCard } from "@/components/ServerJobStatusCard";
 import { getServer } from "@/lib/db/server";
 import { isUserAdmin } from "@/lib/db/users";
-import { redirect } from "next/navigation";
 import { CleanupManager } from "../CleanupManager";
 import { DangerousMergeManager } from "../DangerousMergeManager";
 import { DangerousSeriesMergeManager } from "../DangerousSeriesMergeManager";

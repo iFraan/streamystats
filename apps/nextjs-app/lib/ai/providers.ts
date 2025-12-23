@@ -97,12 +97,15 @@ export function createChatModel(config: ChatConfig): LanguageModel | null {
       // Use .chat() explicitly to avoid Responses API which Ollama doesn't support
       return ollama.chat(config.model);
     }
+
     default: {
       const openai = createOpenAI({
         baseURL: config.baseUrl || "https://api.openai.com/v1",
         apiKey: config.apiKey || "",
       });
-      return openai(config.model);
+      // Use .chat() to avoid Responses API - most OpenAI-compatible providers
+      // (LM Studio, Together, Groq, etc.) don't support item_reference in input
+      return openai.chat(config.model);
     }
   }
 }

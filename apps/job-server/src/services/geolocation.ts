@@ -283,3 +283,157 @@ export function parseIpFromShortOverview(
 
   return null;
 }
+
+export interface ParsedActivityName {
+  userName: string | null;
+  mediaTitle: string | null;
+  playbackDevice: string | null; // from "on Device" in playback events
+  sessionClient: string | null; // from "from Client" in session events
+}
+
+/**
+ * Centralized delimiters for activity name parsing.
+ * Keeps patterns in one place to simplify maintenance if Jellyfin changes wording.
+ */
+const ACTIVITY_DELIMITERS = {
+  playback: {
+    device: " on ",
+    action: " is playing ",
+  },
+  playbackStopped: {
+    device: " on ",
+    action: " has finished playing ",
+  },
+  sessionStarted: {
+    client: " from ",
+    action: " is online",
+  },
+  sessionEnded: {
+    client: " from ",
+    action: " has disconnected",
+  },
+  auth: {
+    action: " successfully authenticated",
+  },
+} as const;
+
+/**
+ * Parse structured fields from activity name based on type.
+ * Uses lastIndexOf to handle edge cases (e.g., titles containing " on ").
+ * Delimiter lengths are derived from constants to avoid magic numbers.
+ *
+ * Patterns:
+ *   VideoPlayback:        "[user] is playing [title] on [device]"
+ *   VideoPlaybackStopped: "[user] has finished playing [title] on [device]"
+ *   SessionStarted:       "[user] is online from [client]"
+ *   SessionEnded:         "[user] has disconnected from [client]"
+ *   AuthenticationSucceeded: "[user] successfully authenticated"
+ */
+export function parseActivityName(
+  activityName: string | null,
+  activityType: string | null
+): ParsedActivityName {
+  const result: ParsedActivityName = {
+    userName: null,
+    mediaTitle: null,
+    playbackDevice: null,
+    sessionClient: null,
+  };
+
+  if (!activityName || !activityType) return result;
+
+  // VideoPlayback: "[user] is playing [title] on [device]"
+  if (activityType === "VideoPlayback") {
+    const { device, action } = ACTIVITY_DELIMITERS.playback;
+    const deviceIndex = activityName.lastIndexOf(device);
+    if (deviceIndex === -1) return result;
+
+    result.playbackDevice =
+      activityName.slice(deviceIndex + device.length).trim() || null;
+
+    const prefix = activityName.slice(0, deviceIndex);
+    const actionIndex = prefix.indexOf(action);
+    if (actionIndex !== -1) {
+      result.userName = prefix.slice(0, actionIndex).trim() || null;
+      result.mediaTitle =
+        prefix.slice(actionIndex + action.length).trim() || null;
+    }
+    return result;
+  }
+
+  // VideoPlaybackStopped: "[user] has finished playing [title] on [device]"
+  if (activityType === "VideoPlaybackStopped") {
+    const { device, action } = ACTIVITY_DELIMITERS.playbackStopped;
+    const deviceIndex = activityName.lastIndexOf(device);
+    if (deviceIndex === -1) return result;
+
+    result.playbackDevice =
+      activityName.slice(deviceIndex + device.length).trim() || null;
+
+    const prefix = activityName.slice(0, deviceIndex);
+    const actionIndex = prefix.indexOf(action);
+    if (actionIndex !== -1) {
+      result.userName = prefix.slice(0, actionIndex).trim() || null;
+      result.mediaTitle =
+        prefix.slice(actionIndex + action.length).trim() || null;
+    }
+    return result;
+  }
+
+  // SessionStarted: "[user] is online from [client]"
+  if (activityType === "SessionStarted") {
+    const { client, action } = ACTIVITY_DELIMITERS.sessionStarted;
+    const clientIndex = activityName.lastIndexOf(client);
+    if (clientIndex === -1) return result;
+
+    result.sessionClient =
+      activityName.slice(clientIndex + client.length).trim() || null;
+
+    const prefix = activityName.slice(0, clientIndex);
+    const actionIndex = prefix.indexOf(action);
+    if (actionIndex !== -1) {
+      result.userName = prefix.slice(0, actionIndex).trim() || null;
+    }
+    return result;
+  }
+
+  // SessionEnded: "[user] has disconnected from [client]"
+  if (activityType === "SessionEnded") {
+    const { client, action } = ACTIVITY_DELIMITERS.sessionEnded;
+    const clientIndex = activityName.lastIndexOf(client);
+    if (clientIndex === -1) return result;
+
+    result.sessionClient =
+      activityName.slice(clientIndex + client.length).trim() || null;
+
+    const prefix = activityName.slice(0, clientIndex);
+    const actionIndex = prefix.indexOf(action);
+    if (actionIndex !== -1) {
+      result.userName = prefix.slice(0, actionIndex).trim() || null;
+    }
+    return result;
+  }
+
+  // AuthenticationSucceeded: "[user] successfully authenticated"
+  if (activityType === "AuthenticationSucceeded") {
+    const { action } = ACTIVITY_DELIMITERS.auth;
+    const actionIndex = activityName.indexOf(action);
+    if (actionIndex !== -1) {
+      result.userName = activityName.slice(0, actionIndex).trim() || null;
+    }
+    return result;
+  }
+
+  return result;
+}
+
+/**
+ * Convenience function: get device or client from activity (unified lookup)
+ */
+export function getDeviceOrClientFromActivity(
+  activityName: string | null,
+  activityType: string | null
+): string | null {
+  const parsed = parseActivityName(activityName, activityType);
+  return parsed.playbackDevice || parsed.sessionClient;
+}

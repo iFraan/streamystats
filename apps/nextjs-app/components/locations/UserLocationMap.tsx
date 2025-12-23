@@ -1,7 +1,7 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import dynamic from "next/dynamic";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Dynamic import to avoid SSR issues with Leaflet
 const MapWithNoSSR = dynamic(() => import("./MapComponent"), {

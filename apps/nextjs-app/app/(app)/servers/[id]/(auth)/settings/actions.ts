@@ -1,8 +1,7 @@
 "use server";
 
-import { deleteServer as deleteServerFromDb } from "@/lib/db/server";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { deleteServer as deleteServerFromDb } from "@/lib/db/server";
 
 /**
  * Server action to delete a server

@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowUpDown, Loader2, Search, Users, X } from "lucide-react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,8 +21,6 @@ import {
 } from "@/components/ui/table";
 import type { ItemUserStats } from "@/lib/db/items";
 import { formatDateUS, formatDuration } from "@/lib/utils";
-import { ArrowUpDown, Loader2, Search, Users, X } from "lucide-react";
-import { memo, useEffect, useRef, useState } from "react";
 
 interface ViewerDetailsDialogProps {
   isOpen: boolean;

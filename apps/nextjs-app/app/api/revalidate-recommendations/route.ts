@@ -1,6 +1,6 @@
+import { type NextRequest, NextResponse } from "next/server";
 import { revalidateSeriesRecommendations } from "@/lib/db/similar-series-statistics";
 import { revalidateRecommendations } from "@/lib/db/similar-statistics";
-import { type NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: `Recommendations cache revalidated for server ${serverId}`,
     });
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { error: "Failed to revalidate recommendations cache" },
       { status: 500 },

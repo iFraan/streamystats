@@ -1,5 +1,10 @@
 "use client";
 
+import { addDays, format, isValid, parseISO } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import * as React from "react";
+import type { DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -9,11 +14,6 @@ import {
 } from "@/components/ui/popover";
 import { useQueryParams } from "@/hooks/useQueryParams";
 import { cn } from "@/lib/utils";
-import { addDays, format, isValid, parseISO } from "date-fns";
-import { CalendarIcon } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import * as React from "react";
-import type { DateRange } from "react-day-picker";
 
 const DATE_PARAM_FORMAT = "yyyy-MM-dd";
 

@@ -50,7 +50,7 @@ RUN --mount=type=cache,target=/app/apps/nextjs-app/.next/cache \
     bun --bun next build --experimental-build-mode compile
 
 # Production runtime stage
-FROM oven/bun:1.3.5-alpine AS runner
+FROM node:24-alpine AS runner
 
 RUN apk add --no-cache libc6-compat vips curl
 
@@ -78,4 +78,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 WORKDIR /app/apps/nextjs-app
 
-CMD ["bun", "run", "server.js"]
+CMD ["node", "server.js"]

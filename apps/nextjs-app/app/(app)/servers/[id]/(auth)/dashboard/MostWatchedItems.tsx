@@ -1,5 +1,9 @@
 "use client";
 
+import type { Item, Server } from "@streamystats/database/schema";
+import { Settings } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,10 +16,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { usePersistantState } from "@/hooks/usePersistantState";
 import { formatDuration } from "@/lib/utils";
-import type { Item, Server } from "@streamystats/database/schema";
-import { Settings } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
 import { Poster } from "./Poster";
 
 interface ItemWithStats extends Item {
@@ -33,7 +33,7 @@ interface Props {
 }
 
 // Local storage key
-const STORAGE_KEY = "mostWatchedColumnsVisibility";
+const _STORAGE_KEY = "mostWatchedColumnsVisibility";
 
 // Default column visibility state
 const DEFAULT_VISIBILITY = {
@@ -43,7 +43,7 @@ const DEFAULT_VISIBILITY = {
 };
 
 export const MostWatchedItems: React.FC<Props> = ({ data, server }) => {
-  const [initialized, setInitialized] = useState(false);
+  const [_initialized, _setInitialized] = useState(false);
 
   const [visibleColumns, setVisibleColumns] = usePersistantState<
     typeof DEFAULT_VISIBILITY

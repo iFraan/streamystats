@@ -1,5 +1,8 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { Loader, Play, Square } from "lucide-react";
+import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -32,9 +35,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
+  clearEmbeddings,
   type EmbeddingProgress,
   type EmbeddingProvider,
-  clearEmbeddings,
   getEmbeddingProgress,
   saveEmbeddingConfig,
   startEmbedding,
@@ -42,9 +45,6 @@ import {
   toggleAutoEmbeddings,
 } from "@/lib/db/server";
 import type { Server } from "@/lib/types";
-import { useQuery } from "@tanstack/react-query";
-import { Loader, Play, Square } from "lucide-react";
-import { useState } from "react";
 
 // Presets for common embedding providers
 const PROVIDER_PRESETS = {
@@ -166,7 +166,7 @@ export function EmbeddingsManager({ server }: { server: Server }) {
   const {
     data: progress,
     error,
-    isLoading,
+    isLoading: _isLoading,
     refetch,
   } = useQuery<EmbeddingProgress>({
     queryKey: ["embedding-progress", server.id],
@@ -209,7 +209,7 @@ export function EmbeddingsManager({ server }: { server: Server }) {
         message: "Embedding configuration saved",
       });
       refetch();
-    } catch (error) {
+    } catch (_error) {
       setActionResult({
         type: "error",
         message: "Failed to save embedding configuration",
@@ -281,7 +281,7 @@ export function EmbeddingsManager({ server }: { server: Server }) {
     }
   };
 
-  const handleCleanupStaleJobs = async () => {
+  const _handleCleanupStaleJobs = async () => {
     setActionResult(null);
     try {
       const jobServerUrl =
@@ -362,7 +362,7 @@ export function EmbeddingsManager({ server }: { server: Server }) {
         type: "success",
         message: `Auto-generate embeddings ${checked ? "enabled" : "disabled"}`,
       });
-    } catch (error) {
+    } catch (_error) {
       setActionResult({
         type: "error",
         message: "Failed to update auto-embedding setting",
@@ -503,7 +503,7 @@ export function EmbeddingsManager({ server }: { server: Server }) {
                   placeholder="1536"
                   value={dimensions}
                   onChange={(e) =>
-                    setDimensions(Number.parseInt(e.target.value) || 1536)
+                    setDimensions(Number.parseInt(e.target.value, 10) || 1536)
                   }
                 />
                 <p className="text-xs text-muted-foreground">

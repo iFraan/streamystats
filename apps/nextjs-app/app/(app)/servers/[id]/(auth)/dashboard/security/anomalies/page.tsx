@@ -1,6 +1,6 @@
+import { redirect } from "next/navigation";
 import { getServerAnomalies } from "@/lib/db/locations";
 import { getServer } from "@/lib/db/server";
-import { redirect } from "next/navigation";
 import { AnomaliesContent } from "./AnomaliesContent";
 
 const PAGE_SIZE = 50;

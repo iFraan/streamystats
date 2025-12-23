@@ -1,5 +1,7 @@
 "use client";
 
+import { AlertTriangle, CheckCircle, Loader, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,8 +12,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { fetch } from "@/lib/utils";
-import { AlertTriangle, CheckCircle, Loader, Trash2 } from "lucide-react";
-import { useState } from "react";
 
 interface CleanupMetrics {
   librariesScanned: number;

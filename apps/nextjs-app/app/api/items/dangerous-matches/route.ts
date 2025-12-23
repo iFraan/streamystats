@@ -1,6 +1,6 @@
-import { requireAdmin } from "@/lib/api-auth";
 import { db, items, sessions } from "@streamystats/database";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { requireAdmin } from "@/lib/api-auth";
 
 export interface DangerousMatch {
   deletedItem: {
@@ -26,9 +26,9 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const serverId = url.searchParams.get("serverId");
-    const page = Number.parseInt(url.searchParams.get("page") || "1");
+    const page = Number.parseInt(url.searchParams.get("page") || "1", 10);
     const limit = Math.min(
-      Number.parseInt(url.searchParams.get("limit") || "100"),
+      Number.parseInt(url.searchParams.get("limit") || "100", 10),
       100,
     );
     const offset = (page - 1) * limit;
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const serverIdNum = Number.parseInt(serverId);
+    const serverIdNum = Number.parseInt(serverId, 10);
     if (Number.isNaN(serverIdNum)) {
       return new Response(
         JSON.stringify({

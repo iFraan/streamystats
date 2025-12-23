@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import {
   Card,
   CardContent,
@@ -15,8 +17,6 @@ import {
 } from "@/components/ui/chart";
 import type { WatchTimePerWeekDay as IWatchTimePerWeekDay } from "@/lib/db/users";
 import { formatDuration } from "@/lib/utils";
-import * as React from "react";
-import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 
 const chartConfig = {
   minutes: {

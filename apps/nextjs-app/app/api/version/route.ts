@@ -1,11 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
-
-type VersionResponse = {
-  currentVersion: string;
-  latestVersion: string;
-  hasUpdate: boolean;
-  buildTime?: number;
-};
+import type { NextRequest } from "next/server";
 
 export async function GET(_req: NextRequest) {
   const currentVersion = process.env.NEXT_PUBLIC_VERSION || "latest";

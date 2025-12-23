@@ -1,9 +1,9 @@
+import { db, type Server, servers } from "@streamystats/database";
+import { ilike } from "drizzle-orm";
+import type { NextRequest } from "next/server";
 import { getServer } from "@/lib/db/server";
 import { getSimilarStatistics } from "@/lib/db/similar-statistics";
 import { authenticateByName, getUserFromEmbyToken } from "@/lib/jellyfin-auth";
-import { type Server, db, servers } from "@streamystats/database";
-import { ilike } from "drizzle-orm";
-import type { NextRequest } from "next/server";
 
 type RecommendationType = "Movie" | "Series" | "all";
 type RangePreset = "7d" | "30d" | "90d" | "thisMonth" | "all";

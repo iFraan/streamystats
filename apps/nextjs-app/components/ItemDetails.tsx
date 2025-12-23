@@ -47,6 +47,9 @@ interface Props {
   statistics: ItemStatistics;
 }
 
-export const ItemDetails: React.FC<Props> = ({ item, statistics }) => {
+export const ItemDetails: React.FC<Props> = ({
+  item,
+  statistics: _statistics,
+}) => {
   return <div className="space-y-6">{item.name}</div>;
 };

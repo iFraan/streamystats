@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.1](https://github.com/fredrikburmester/streamystats/compare/v2.14.0...v2.14.1) (2025-12-22)
+
+
+### Bug Fixes
+
+* revert release action ([eb705d9](https://github.com/fredrikburmester/streamystats/commit/eb705d9e26f8b4e4e9da529e65553242b2a1095a))
+
 ## [2.14.0](https://github.com/fredrikburmester/streamystats/compare/v2.13.0...v2.14.0) (2025-12-21)
 
 

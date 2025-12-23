@@ -1,11 +1,11 @@
 "use client";
 
-import { logout } from "@/lib/db/users";
 import type { User } from "@streamystats/database";
-import { ChevronsUpDown, Loader2, LogOut } from "lucide-react";
+import { ChevronsUpDown, LogOut } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { logout } from "@/lib/db/users";
 import JellyfinAvatar from "./JellyfinAvatar";
 import { Spinner } from "./Spinner";
 import {

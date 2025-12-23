@@ -1,13 +1,12 @@
 "use client";
 
+import { Clock, Film, Play, Tv } from "lucide-react";
+import Link from "next/link";
 import { Poster } from "@/app/(app)/servers/[id]/(auth)/dashboard/Poster";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Item, Server } from "@/lib/types";
-import { formatDuration } from "@/lib/utils";
-import { cn } from "@/lib/utils";
-import { Clock, Film, Play, Tv } from "lucide-react";
-import Link from "next/link";
+import { cn, formatDuration } from "@/lib/utils";
 
 export interface ItemWithStats extends Item {
   totalPlayCount: number;

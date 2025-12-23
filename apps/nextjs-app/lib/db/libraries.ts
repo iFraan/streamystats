@@ -1,11 +1,7 @@
 import { db, libraries } from "@streamystats/database";
 import { and, eq } from "drizzle-orm";
 
-export const getLibraries = async ({
-  serverId,
-}: {
-  serverId: number;
-}) => {
+export const getLibraries = async ({ serverId }: { serverId: number }) => {
   return await db.query.libraries.findMany({
     where: eq(libraries.serverId, serverId),
   });

@@ -1,9 +1,5 @@
-import type { ItemUserStats } from "@/lib/db/items";
-import { getServer } from "@/lib/db/server";
-import { isUserAdmin } from "@/lib/db/users";
 import { db, items, sessions, users } from "@streamystats/database";
 import {
-  type SQL,
   and,
   asc,
   count,
@@ -11,10 +7,14 @@ import {
   eq,
   inArray,
   like,
+  type SQL,
   sql,
   sum,
 } from "drizzle-orm";
 import type { NextRequest } from "next/server";
+import type { ItemUserStats } from "@/lib/db/items";
+import { getServer } from "@/lib/db/server";
+import { isUserAdmin } from "@/lib/db/users";
 
 export async function GET(
   request: NextRequest,
@@ -57,10 +57,13 @@ export async function GET(
   }
 
   const { searchParams } = request.nextUrl;
-  const page = Math.max(1, Number.parseInt(searchParams.get("page") || "1"));
+  const page = Math.max(
+    1,
+    Number.parseInt(searchParams.get("page") || "1", 10),
+  );
   const pageSize = Math.max(
     1,
-    Math.min(100, Number.parseInt(searchParams.get("pageSize") || "5")),
+    Math.min(100, Number.parseInt(searchParams.get("pageSize") || "5", 10)),
   );
   const search = searchParams.get("search")?.trim() || "";
   const completion = searchParams.get("completion") || "all";

@@ -9,6 +9,7 @@ import {
 } from "@streamystats/database/schema";
 import {
   and,
+  cosineDistance,
   desc,
   eq,
   ilike,
@@ -19,9 +20,8 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import { cosineDistance } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
-import { type Holiday, getActiveHolidays } from "../holidays";
+import { getActiveHolidays, type Holiday } from "../holidays";
 import { getExclusionSettings } from "./exclusions";
 import { getMe } from "./users";
 

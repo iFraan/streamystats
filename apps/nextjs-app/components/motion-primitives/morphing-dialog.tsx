@@ -1,10 +1,8 @@
 "use client";
 
-import useClickOutside from "@/hooks/useClickOutside";
-import { cn } from "@/lib/utils";
 import { XIcon } from "lucide-react";
-import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import type { Transition, Variant } from "motion/react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import Image from "next/image";
 import React, {
   useCallback,
@@ -16,6 +14,8 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import useClickOutside from "@/hooks/useClickOutside";
+import { cn } from "@/lib/utils";
 
 export type MorphingDialogContextType = {
   isOpen: boolean;
@@ -367,7 +367,7 @@ function MorphingDialogImage({
       width={width}
       height={height}
       className={cn(className)}
-      // @ts-ignore used by motion.img
+      // @ts-expect-error used by motion.img
       layoutId={`dialog-img-${uniqueId}`}
       style={style}
     />

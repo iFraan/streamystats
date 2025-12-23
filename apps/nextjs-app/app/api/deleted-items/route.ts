@@ -1,8 +1,8 @@
-import { requireApiKey } from "@/lib/api-auth";
-import { getServer } from "@/lib/db/server";
-import { type Server, db, items, servers } from "@streamystats/database";
+import { db, items, type Server, servers } from "@streamystats/database";
 import { and, count, desc, eq, gte, ilike, isNotNull } from "drizzle-orm";
 import type { NextRequest } from "next/server";
+import { requireApiKey } from "@/lib/api-auth";
+import { getServer } from "@/lib/db/server";
 
 /**
  * API Route: GET /api/deleted-items?serverId=123 OR ?serverName=MyServer

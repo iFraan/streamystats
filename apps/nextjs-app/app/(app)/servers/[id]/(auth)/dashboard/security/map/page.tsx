@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { UserLocationMap } from "@/components/locations";
 import {
   Card,
@@ -8,7 +9,6 @@ import {
 } from "@/components/ui/card";
 import { getServerLocations } from "@/lib/db/locations";
 import { getServer } from "@/lib/db/server";
-import { redirect } from "next/navigation";
 
 export default async function MapPage({
   params,

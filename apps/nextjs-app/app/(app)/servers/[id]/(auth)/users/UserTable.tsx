@@ -3,18 +3,18 @@
 import {
   type ColumnDef,
   type ColumnFiltersState,
-  type SortingState,
-  type VisibilityState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type SortingState,
   useReactTable,
+  type VisibilityState,
 } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronDown } from "lucide-react";
+import { useRouter } from "nextjs-toploader/app";
 import * as React from "react";
-
 import JellyfinAvatar from "@/components/JellyfinAvatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,9 +36,6 @@ import { usePersistantState } from "@/hooks/usePersistantState";
 import type { UserWithStats } from "@/lib/db/users";
 import type { Server } from "@/lib/types";
 import { formatDuration } from "@/lib/utils";
-import Link from "next/link";
-import { useRouter } from "nextjs-toploader/app";
-import User from "./[userId]/page";
 
 export interface UserTableProps {
   data: UserWithStats[];
@@ -184,7 +181,7 @@ export const UserTable: React.FC<UserTableProps> = ({
     },
   ];
 
-  const [sorting, setSorting, isLoadingSorting] =
+  const [sorting, setSorting, _isLoadingSorting] =
     usePersistantState<SortingState>(`users-sorting-${server.id}`, [
       { desc: true, id: "total_watch_time" },
     ]);
@@ -192,7 +189,7 @@ export const UserTable: React.FC<UserTableProps> = ({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
-  const [columnVisibility, setColumnVisibility, isLoadingVisibility] =
+  const [columnVisibility, setColumnVisibility, _isLoadingVisibility] =
     usePersistantState<VisibilityState>(
       `users-column-visibility-${server.id}`,
       {},

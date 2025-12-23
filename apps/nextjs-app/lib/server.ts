@@ -1,6 +1,6 @@
 "use server";
 
-import { type Server, db, servers } from "@streamystats/database";
+import { db, type Server, servers } from "@streamystats/database";
 
 interface CreateServerRequest {
   name: string;
@@ -125,8 +125,8 @@ export async function getServers(): Promise<Server[]> {
  */
 export async function pollServerSetupStatus(
   serverId: number,
-  maxAttempts = 30,
-  intervalMs = 2000,
+  _maxAttempts = 30,
+  _intervalMs = 2000,
 ): Promise<{ success: boolean; status: string }> {
   const status = await getServerSyncStatus(serverId);
   return status;

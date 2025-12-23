@@ -1,6 +1,6 @@
-import { requireAdmin } from "@/lib/api-auth";
 import { db, items } from "@streamystats/database";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, inArray, isNull } from "drizzle-orm";
+import { requireAdmin } from "@/lib/api-auth";
 
 export async function POST(request: Request) {
   try {

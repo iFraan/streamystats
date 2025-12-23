@@ -6,7 +6,7 @@ import {
   sessions,
   users,
 } from "@streamystats/database";
-import { type SQL, and, eq, inArray, notInArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray, type SQL } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 
 export interface ExclusionSettings {

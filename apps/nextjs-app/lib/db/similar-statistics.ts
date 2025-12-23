@@ -2,17 +2,17 @@
 
 import { db } from "@streamystats/database";
 import {
-  type Item,
   hiddenRecommendations,
+  type Item,
   items,
   sessions,
 } from "@streamystats/database/schema";
 import {
   and,
+  cosineDistance,
   count,
   desc,
   eq,
-  gt,
   gte,
   isNotNull,
   isNull,
@@ -20,7 +20,6 @@ import {
   notInArray,
   sql,
 } from "drizzle-orm";
-import { cosineDistance } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { getExclusionSettings } from "./exclusions";
 import { getMe } from "./users";
@@ -297,7 +296,7 @@ async function getUserSpecificRecommendations(
 
   // Use multiple movies to create recommendations
   const recommendations: RecommendationItem[] = [];
-  const usedRecommendationIds = new Set<string>();
+  const _usedRecommendationIds = new Set<string>();
 
   // Hybrid approach: prioritize recent watches but include some highly watched items
   // Take recent watches (first 5) and mix with some top watched items

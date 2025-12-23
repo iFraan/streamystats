@@ -1,18 +1,8 @@
 "use server";
 
-import {
-  activities,
-  db,
-  items,
-  jobResults,
-  libraries,
-  servers,
-  sessions,
-  users,
-} from "@streamystats/database";
-import { and, count, desc, eq, sql } from "drizzle-orm";
-
+import { db, items, jobResults, servers } from "@streamystats/database";
 import type { EmbeddingJobResult, Server } from "@streamystats/database/schema";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 
 export const getServers = async (): Promise<Server[]> => {
   return await db.select().from(servers);
@@ -113,6 +103,22 @@ export const saveEmbeddingConfig = async ({
 
 export const clearEmbeddings = async ({ serverId }: { serverId: number }) => {
   try {
+    // Stop any running embedding job first
+    const jobServerUrl =
+      process.env.JOB_SERVER_URL && process.env.JOB_SERVER_URL !== "undefined"
+        ? process.env.JOB_SERVER_URL
+        : "http://localhost:3005";
+
+    try {
+      await fetch(`${jobServerUrl}/api/jobs/stop-embedding`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serverId }),
+      });
+    } catch {
+      // Non-critical: job might not be running
+    }
+
     // Clear all embeddings for items belonging to this server
     await db
       .update(items)
@@ -133,12 +139,6 @@ export const clearEmbeddings = async ({ serverId }: { serverId: number }) => {
     }
 
     // Clear the job server's in-memory embedding index cache
-    // This ensures the index is properly checked/recreated on next embedding generation
-    const jobServerUrl =
-      process.env.JOB_SERVER_URL && process.env.JOB_SERVER_URL !== "undefined"
-        ? process.env.JOB_SERVER_URL
-        : "http://localhost:3005";
-
     try {
       await fetch(`${jobServerUrl}/api/jobs/clear-embedding-cache`, {
         method: "POST",
@@ -242,19 +242,17 @@ export const getEmbeddingProgress = async ({
     let status = "idle";
     if (recentJob.length > 0) {
       const job = recentJob[0];
-      const jobAge = Date.now() - new Date(job.createdAt).getTime();
-      const isStale = jobAge > 10 * 60 * 1000; // 10 minutes
 
       if (job.status === "processing") {
-        // Check if the job has been processing for too long without heartbeat
-        const result = job.result as { lastHeartbeat: string };
+        // Check if the job has a stale heartbeat (embedding jobs can legitimately run for a long time)
+        const result = job.result as { lastHeartbeat?: string };
         const lastHeartbeat = result?.lastHeartbeat
           ? new Date(result.lastHeartbeat).getTime()
           : new Date(job.createdAt).getTime();
         const heartbeatAge = Date.now() - lastHeartbeat;
-        const isHeartbeatStale = heartbeatAge > 2 * 60 * 1000; // 2 minutes without heartbeat
+        const isHeartbeatStale = heartbeatAge > 90 * 1000; // 90 seconds without heartbeat (job updates every ~30s)
 
-        if (isStale || isHeartbeatStale) {
+        if (isHeartbeatStale) {
           console.warn(
             `Detected stale embedding job for server ${serverId}, marking as failed`,
           );
@@ -270,7 +268,7 @@ export const getEmbeddingProgress = async ({
               staleSince: new Date().toISOString(),
               originalJobId: job.jobId,
             },
-            processingTime: jobAge,
+            processingTime: null,
             error: "Job exceeded maximum processing time or lost heartbeat",
           });
 
@@ -278,6 +276,8 @@ export const getEmbeddingProgress = async ({
         } else {
           status = "processing";
         }
+      } else if (job.status === "stopped") {
+        status = "stopped";
       } else if (job.status === "failed") {
         status = "failed";
       } else if (processed === total && total > 0) {
@@ -358,9 +358,7 @@ export const cleanupStaleEmbeddingJobs = async (): Promise<number> => {
               .where(eq(jobResults.id, staleJob.id));
 
             cleanedCount++;
-            console.log(
-              `Cleaned up stale embedding job for server ${serverId}`,
-            );
+            // Intentionally no console.log here (avoid noisy production logs)
           }
         }
       } catch (error) {
@@ -369,7 +367,7 @@ export const cleanupStaleEmbeddingJobs = async (): Promise<number> => {
     }
 
     if (cleanedCount > 0) {
-      console.log(`Cleaned up ${cleanedCount} stale embedding jobs`);
+      // Intentionally no console.log here (avoid noisy production logs)
     }
 
     return cleanedCount;
@@ -398,13 +396,7 @@ export const startEmbedding = async ({ serverId }: { serverId: number }) => {
       );
     }
 
-    // API key is required for openai-compatible but optional for ollama
-    if (
-      server.embeddingProvider === "openai-compatible" &&
-      !server.embeddingApiKey
-    ) {
-      throw new Error("API key is required for OpenAI-compatible providers");
-    }
+    // API key is optional for both providers - local providers like LM Studio don't require one
 
     // Check if configured dimension matches existing embeddings
     const existingDimension = await getExistingEmbeddingDimension({ serverId });
@@ -434,15 +426,6 @@ export const startEmbedding = async ({ serverId }: { serverId: number }) => {
     if (!response.ok) {
       throw new Error("Failed to start embedding job");
     }
-
-    // Log job start
-    await db.insert(jobResults).values({
-      jobId: `embedding-${serverId}-${Date.now()}`,
-      jobName: "generate-item-embeddings",
-      status: "processing",
-      result: { serverId, startedAt: new Date().toISOString() },
-      processingTime: 0,
-    });
   } catch (error) {
     console.error(`Error starting embedding for server ${serverId}:`, error);
     throw new Error(
@@ -473,15 +456,6 @@ export const stopEmbedding = async ({ serverId }: { serverId: number }) => {
     if (!response.ok) {
       throw new Error("Failed to stop embedding job");
     }
-
-    // Update job status
-    await db.insert(jobResults).values({
-      jobId: `embedding-stop-${serverId}-${Date.now()}`,
-      jobName: "generate-item-embeddings",
-      status: "completed",
-      result: { serverId, stoppedAt: new Date().toISOString(), stopped: true },
-      processingTime: 0,
-    });
   } catch (error) {
     console.error(`Error stopping embedding for server ${serverId}:`, error);
     throw new Error(

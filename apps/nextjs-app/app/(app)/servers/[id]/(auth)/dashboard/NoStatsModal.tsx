@@ -1,5 +1,8 @@
 "use client";
 
+import { AlertDialogCancel } from "@radix-ui/react-alert-dialog";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,9 +12,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertDialogCancel } from "@radix-ui/react-alert-dialog";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
 
 export function NoStatsModal() {
   const router = useRouter();

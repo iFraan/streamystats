@@ -1,8 +1,8 @@
+import { db, items, users } from "@streamystats/database";
+import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/api-auth";
 import type { ActiveSession } from "@/lib/db/active-sessions";
 import { getServer } from "@/lib/db/server";
-import { db, items, users } from "@streamystats/database";
-import { eq } from "drizzle-orm";
 
 export async function GET(request: Request) {
   // Require valid session to view active sessions
@@ -35,11 +35,13 @@ export async function GET(request: Request) {
         status: 404,
         headers: {
           "Content-Type": "application/json",
+          "Cache-Control": "no-store",
         },
       },
     );
   }
 
+  let jellyfinSessions: JellyfinSession[];
   try {
     const response = await fetch(`${server.url}/Sessions`, {
       method: "GET",
@@ -78,12 +80,13 @@ export async function GET(request: Request) {
           headers: {
             "Content-Type": "application/json",
             "x-server-connectivity-error": status >= 500 ? "true" : "false",
+            "Cache-Control": "no-store",
           },
         },
       );
     }
 
-    const jellyfinSessions: JellyfinSession[] = await response.json();
+    jellyfinSessions = await response.json();
 
     // Ensure we have valid data - if not, return an empty array
     if (!Array.isArray(jellyfinSessions)) {
@@ -95,20 +98,10 @@ export async function GET(request: Request) {
         status: 200,
         headers: {
           "Content-Type": "application/json",
+          "Cache-Control": "no-store",
         },
       });
     }
-
-    const activeSessions = await Promise.all(
-      jellyfinSessions.map(mapJellyfinSessionToActiveSession),
-    );
-
-    return new Response(JSON.stringify(activeSessions), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
   } catch (error) {
     console.error("Error fetching Jellyfin sessions:", error);
 
@@ -124,6 +117,39 @@ export async function GET(request: Request) {
         headers: {
           "Content-Type": "application/json",
           "x-server-connectivity-error": "true",
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
+  try {
+    const activeSessions = (
+      await Promise.all(jellyfinSessions.map(mapJellyfinSessionToActiveSession))
+    ).filter((session): session is ActiveSession => Boolean(session));
+
+    return new Response(JSON.stringify(activeSessions), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    console.error("Error mapping sessions using database:", error);
+
+    return new Response(
+      JSON.stringify({
+        error: "Failed to map active sessions (database error)",
+        message: error instanceof Error ? error.message : "Unknown error",
+        database_error: true,
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "x-database-error": "true",
+          "Cache-Control": "no-store",
         },
       },
     );

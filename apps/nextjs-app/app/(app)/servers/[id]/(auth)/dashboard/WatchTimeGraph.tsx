@@ -12,9 +12,11 @@ import {
   startOfMonth,
   startOfYear,
 } from "date-fns";
+import { useParams, useSearchParams } from "next/navigation";
+import { useRouter } from "nextjs-toploader/app";
 import * as React from "react";
+import { Suspense } from "react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
-
 import {
   Card,
   CardContent,
@@ -22,12 +24,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { ChartConfig } from "@/components/ui/chart";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import type { ChartConfig } from "@/components/ui/chart";
 import {
   Select,
   SelectContent,
@@ -38,9 +40,6 @@ import {
 import { useQueryParams } from "@/hooks/useQueryParams";
 import type { WatchTimePerType } from "@/lib/db/statistics";
 import { formatDuration } from "@/lib/utils";
-import { useParams, useSearchParams } from "next/navigation";
-import { useRouter } from "nextjs-toploader/app";
-import { Suspense } from "react";
 
 const chartConfig = {
   Episode: {

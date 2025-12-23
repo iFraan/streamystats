@@ -1,5 +1,15 @@
 "use client";
 
+import { InfoIcon } from "lucide-react";
+import { useCallback } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { CustomBarLabel } from "@/components/ui/CustomBarLabel";
 import {
   Card,
@@ -16,17 +26,6 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { CategoryStat } from "@/lib/db/transcoding-statistics";
-import { InfoIcon } from "lucide-react";
-import { useCallback } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 interface TranscodingReasonsCardProps {
   data: CategoryStat[];
@@ -41,7 +40,7 @@ function cleanReasonLabel(label: string): string {
       if (Array.isArray(parsed)) {
         return parsed.join(", ");
       }
-    } catch (error) {
+    } catch (_error) {
       // If parsing fails, return the original label
     }
   }
@@ -86,8 +85,6 @@ export const TranscodingReasonsCard = ({
     const heightPerBar = 48;
     return Math.min(Math.max(minHeight, dataLength * heightPerBar), maxHeight);
   };
-
-  const maxCount = Math.max(...reasonsData.map((d) => d.count));
 
   const total = reasonsData.reduce((sum, item) => sum + item.count, 0);
   const reasonsDataWithPercent = reasonsData.map((item) => ({
@@ -151,46 +148,41 @@ export const TranscodingReasonsCard = ({
           className="w-full aspect-auto"
           style={{ height: getChartHeight(reasonsDataWithPercent.length) }}
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              accessibilityLayer
-              data={reasonsDataWithPercent}
+          <BarChart
+            accessibilityLayer
+            data={reasonsDataWithPercent}
+            layout="vertical"
+            margin={{
+              right: 16,
+              left: 0,
+              top: 5,
+              bottom: 5,
+            }}
+            barSize={getBarHeight(reasonsDataWithPercent.length)}
+          >
+            <CartesianGrid horizontal={false} />
+            <YAxis
+              dataKey="reason"
+              type="category"
+              tickLine={false}
+              tickMargin={10}
+              axisLine={false}
+              hide
+            />
+            <XAxis dataKey="count" type="number" hide />
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent indicator="line" />}
+            />
+            <Bar
+              dataKey="count"
               layout="vertical"
-              margin={{
-                right: 16,
-                left: 0,
-                top: 5,
-                bottom: 5,
-              }}
-              barSize={getBarHeight(reasonsDataWithPercent.length)}
+              radius={4}
+              className="fill-blue-600"
             >
-              <CartesianGrid horizontal={false} />
-              <YAxis
-                dataKey="reason"
-                type="category"
-                tickLine={false}
-                tickMargin={10}
-                axisLine={false}
-                hide
-              />
-              <XAxis dataKey="count" type="number" hide />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent indicator="line" />}
-              />
-              <Bar
-                dataKey="count"
-                layout="vertical"
-                radius={4}
-                className="fill-blue-600"
-              >
-                <LabelList
-                  dataKey="labelWithPercent"
-                  content={renderBarLabel}
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              <LabelList dataKey="labelWithPercent" content={renderBarLabel} />
+            </Bar>
+          </BarChart>
         </ChartContainer>
       </CardContent>
       <CardFooter className="text-sm text-muted-foreground">

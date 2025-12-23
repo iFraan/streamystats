@@ -1,5 +1,7 @@
 "use client";
 
+import { format, formatDistanceToNow } from "date-fns";
+import { Activity, Clock, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -8,8 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { format, formatDistanceToNow } from "date-fns";
-import { Activity, Clock, MapPin } from "lucide-react";
 
 interface LocationEntry {
   id: number;

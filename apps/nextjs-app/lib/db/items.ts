@@ -1,15 +1,14 @@
 import "server-only";
 import {
-  type Item,
-  type Session,
-  type User,
   db,
+  type Item,
   items,
+  type Session,
   sessions,
+  type User,
   users,
 } from "@streamystats/database";
 import {
-  type SQL,
   and,
   asc,
   count,
@@ -17,7 +16,7 @@ import {
   eq,
   inArray,
   isNotNull,
-  notInArray,
+  type SQL,
   sql,
   sum,
 } from "drizzle-orm";
@@ -576,7 +575,7 @@ export const getItemWatchHistory = async ({
     user: row.users,
     watchDate: row.sessions
       .startTime!.toISOString()
-      .replace(/\.(\d{3})Z$/, (match, ms) => `.${ms}000Z`),
+      .replace(/\.(\d{3})Z$/, (_match, ms) => `.${ms}000Z`),
     watchDuration: row.sessions.playDuration || 0,
     completionPercentage: row.sessions.percentComplete || 0,
     playMethod: row.sessions.playMethod,

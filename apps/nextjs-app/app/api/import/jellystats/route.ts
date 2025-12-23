@@ -1,15 +1,15 @@
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { requireAdmin } from "@/lib/api-auth";
 import { db } from "@streamystats/database";
-import { sessions } from "@streamystats/database/schema";
 import type { NewSession } from "@streamystats/database/schema";
+import { sessions } from "@streamystats/database/schema";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-// @ts-ignore - stream-json doesn't have types
+// @ts-expect-error - stream-json doesn't have types
 import { parser } from "stream-json";
-// @ts-ignore - stream-json doesn't have types
+// @ts-expect-error - stream-json doesn't have types
 import { streamArray } from "stream-json/streamers/StreamArray";
+import { requireAdmin } from "@/lib/api-auth";
 
 /** ISO-8601 timestamp */
 type ISODate = string & { __iso: undefined };

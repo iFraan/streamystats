@@ -1,14 +1,14 @@
 "use client";
 
+import type { Server } from "@streamystats/database/schema";
+import { Sparkles, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { Poster } from "@/app/(app)/servers/[id]/(auth)/dashboard/Poster";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import type { SeriesRecommendationItem } from "@/lib/db/similar-series-statistics";
 import type { RecommendationItem } from "@/lib/db/similar-statistics";
 import { formatDuration } from "@/lib/utils";
-import type { Server } from "@streamystats/database/schema";
-import { Sparkles, TrendingUp } from "lucide-react";
-import Link from "next/link";
 
 interface SimilarItemsProps {
   items: Array<RecommendationItem | SeriesRecommendationItem>;
