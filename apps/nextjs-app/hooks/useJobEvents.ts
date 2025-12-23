@@ -28,11 +28,22 @@ export function useJobEvents(options: {
 
   const lastEventEpochRef = useRef<number | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
+  // Use a ref to store the callback to avoid re-running the effect when callback changes
+  const onJobEventRef = useRef(onJobEvent);
+
+  // Keep the ref in sync with the latest callback
+  useEffect(() => {
+    onJobEventRef.current = onJobEvent;
+  }, [onJobEvent]);
 
   useEffect(() => {
     let reconnectTimer: number | null = null;
+    let isMounted = true;
 
     const connect = (since?: number) => {
+      // Don't create new connections if component is unmounted
+      if (!isMounted) return;
+
       const url = new URL("/api/jobs/events", window.location.origin);
       if (since) url.searchParams.set("since", String(since));
 
@@ -42,7 +53,8 @@ export function useJobEvents(options: {
       es.addEventListener("job", (evt) => {
         try {
           const data = JSON.parse((evt as MessageEvent).data) as JobEvent;
-          onJobEvent(data);
+          // Use ref to always call the latest callback version
+          onJobEventRef.current(data);
 
           if (typeof data.epochMs === "number") {
             lastEventEpochRef.current = data.epochMs;
@@ -65,6 +77,9 @@ export function useJobEvents(options: {
       es.onerror = () => {
         es.close();
 
+        // Don't attempt reconnection if component is unmounted
+        if (!isMounted) return;
+
         if (reconnectTimer) {
           window.clearTimeout(reconnectTimer);
         }
@@ -77,8 +92,12 @@ export function useJobEvents(options: {
     connect();
 
     return () => {
+      isMounted = false;
       if (reconnectTimer) window.clearTimeout(reconnectTimer);
-      if (sourceRef.current) sourceRef.current.close();
+      if (sourceRef.current) {
+        sourceRef.current.close();
+        sourceRef.current = null;
+      }
     };
-  }, [onJobEvent]);
+  }, []); // Empty deps - only run once, callback changes are handled via ref
 }
