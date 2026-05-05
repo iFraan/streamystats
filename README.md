@@ -99,3 +99,4 @@ Docker is currently the easiest and recommended way to run streamystats. However
 - Backend: Hono with Bun v1.3
 - Database: vectorchord (used for embeddings)
 - Containerization: Docker
+
