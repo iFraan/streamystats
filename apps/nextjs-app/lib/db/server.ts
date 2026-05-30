@@ -175,7 +175,11 @@ export const deleteServer = async ({
 
 // Embedding-related functions
 
-export type EmbeddingProvider = "openai-compatible" | "ollama" | "voyage";
+export type EmbeddingProvider =
+  | "openai-compatible"
+  | "ollama"
+  | "voyage"
+  | "gemini";
 
 export interface EmbeddingConfig {
   provider: EmbeddingProvider;
