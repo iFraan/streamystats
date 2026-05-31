@@ -85,6 +85,11 @@ const dashboard_items = [
     url: "/dashboard/people",
     icon: Users,
   },
+  {
+    title: "Similarity",
+    url: "/dashboard/similarity",
+    icon: Sparkles,
+  },
 ];
 
 const admin_items = [
