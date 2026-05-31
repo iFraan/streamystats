@@ -148,13 +148,13 @@ export function SimilarityExplorerTable({
           <TableHeader>
             <TableRow>
               <TableHead>Item</TableHead>
-              <TableHead>
+              <TableHead className="text-center">
                 <Button variant="ghost" onClick={toggleSimilaritySort}>
                   Similarity
                   <ArrowUpDown data-icon="inline-end" />
                 </Button>
               </TableHead>
-              <TableHead>Watched</TableHead>
+              <TableHead className="text-center">Watched</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -185,7 +185,7 @@ export function SimilarityExplorerTable({
                         </div>
                       </Link>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <Badge
                         variant="outline"
                         className={similarityBadge.className}
@@ -193,7 +193,7 @@ export function SimilarityExplorerTable({
                         {similarityBadge.label}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <Badge variant={row.watched ? "secondary" : "outline"}>
                         {row.watched ? "Watched" : "Unwatched"}
                       </Badge>
