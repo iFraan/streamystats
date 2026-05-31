@@ -6,6 +6,7 @@ import {
   Calendar,
   Clock,
   ExternalLink,
+  Sparkles,
   Star,
   Trash2,
   Tv,
@@ -19,6 +20,7 @@ import type { ServerPublic } from "@/lib/types";
 import { formatDuration } from "@/lib/utils";
 import { AddToWatchlistButton } from "./AddToWatchlistButton";
 import { MarkAsWatchedButton } from "./MarkAsWatchedButton";
+import { getTasteSimilarityBadge } from "./taste-similarity";
 import type { ItemDetailsResponse } from "./types";
 
 interface ItemHeaderProps {
@@ -28,6 +30,7 @@ interface ItemHeaderProps {
   serverId: number;
   userId: string;
   isPlayed: boolean;
+  tasteSimilarity: number | null;
 }
 
 function formatRuntime(runtimeTicks: number): string {
@@ -47,8 +50,10 @@ export function ItemHeader({
   serverId,
   userId,
   isPlayed,
+  tasteSimilarity,
 }: ItemHeaderProps) {
   const isDeleted = item.deletedAt !== null;
+  const tasteSimilarityBadge = getTasteSimilarityBadge(tasteSimilarity);
 
   return (
     <Card className={isDeleted ? "border-destructive/50" : undefined}>
@@ -168,6 +173,15 @@ export function ItemHeader({
                 {item.officialRating && (
                   <Badge variant="outline" className="text-sm">
                     {item.officialRating}
+                  </Badge>
+                )}
+                {tasteSimilarityBadge && (
+                  <Badge
+                    variant="outline"
+                    className={`text-sm ${tasteSimilarityBadge.className}`}
+                  >
+                    <Sparkles className="w-4 h-4 mr-1" />
+                    {tasteSimilarityBadge.label}
                   </Badge>
                 )}
               </div>

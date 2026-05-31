@@ -5,6 +5,7 @@ import {
   getItemDirectors,
   getItemWriters,
 } from "@/lib/db/actor-types";
+import { getItemTasteSimilarity } from "@/lib/db/item-taste-similarity";
 import { getItemDetails, getSeasonsAndEpisodes } from "@/lib/db/items";
 import { getServer } from "@/lib/db/server";
 import type { SeriesRecommendationItem } from "@/lib/db/similar-series-statistics";
@@ -15,6 +16,7 @@ import {
 } from "@/lib/db/similar-statistics";
 import { getMe, getViewerUserId, isUserAdmin } from "@/lib/db/users";
 import { jellyfinHeaders } from "@/lib/jellyfin-auth";
+import { getInternalUrl } from "@/lib/server-url";
 import { getToken } from "@/lib/token";
 import { CastSection } from "./CastSection";
 import { ItemHeader } from "./ItemHeader";
@@ -77,11 +79,16 @@ export default async function ItemDetailsPage({
     redirect("/not-found");
   }
 
-  // Fetch played status from Jellyfin
-  const isPlayed =
-    token && server.url
-      ? await getItemPlayedStatus(server.url, token, me.id, itemId)
-      : false;
+  const [isPlayed, tasteSimilarity] = await Promise.all([
+    token
+      ? getItemPlayedStatus(getInternalUrl(server), token, me.id, itemId)
+      : false,
+    getItemTasteSimilarity({
+      serverId: server.id,
+      userId: me.id,
+      itemId,
+    }),
+  ]);
 
   // Get similar items based on the specific item (not user-based)
   let similarItems: Array<RecommendationItem | SeriesRecommendationItem> = [];
@@ -118,6 +125,7 @@ export default async function ItemDetailsPage({
           serverId={id}
           userId={me.id}
           isPlayed={isPlayed}
+          tasteSimilarity={tasteSimilarity}
         />
         <ItemMetadata
           item={itemDetails.item}
