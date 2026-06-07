@@ -15,6 +15,7 @@ import {
   type LucideIcon,
   MessageSquare,
   Monitor,
+  Network,
   RefreshCw,
   Settings,
   Shield,
@@ -112,6 +113,11 @@ const admin_items = [
     title: "Users",
     url: "/users",
     icon: Users,
+  },
+  {
+    title: "Taste Similarity",
+    url: "/dashboard/user-taste-similarity",
+    icon: Network,
   },
 ];
 
