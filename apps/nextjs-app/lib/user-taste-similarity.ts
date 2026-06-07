@@ -74,13 +74,26 @@ export function buildUserTasteSimilarity(
   users: UserTasteEmbeddingInput[],
 ): UserTasteSimilarityResult {
   const pairs: UserTasteSimilarityPair[] = [];
+  const matrix: UserTasteSimilarityRow[] = [];
 
-  const matrix = users.map((leftUser, leftIndex) => {
-    const cells = users.map((rightUser, rightIndex) => {
-      const similarity =
-        leftIndex === rightIndex
-          ? 1
-          : calculateCosineSimilarity(leftUser.embedding, rightUser.embedding);
+  for (let leftIndex = 0; leftIndex < users.length; leftIndex++) {
+    const leftUser = users[leftIndex];
+    const cells: UserTasteSimilarityCell[] = [];
+
+    for (let rightIndex = 0; rightIndex < users.length; rightIndex++) {
+      const rightUser = users[rightIndex];
+      let similarity: number | null;
+
+      if (leftIndex === rightIndex) {
+        similarity = 1;
+      } else if (leftIndex > rightIndex) {
+        similarity = matrix[rightIndex]?.cells[leftIndex]?.similarity ?? null;
+      } else {
+        similarity = calculateCosineSimilarity(
+          leftUser.embedding,
+          rightUser.embedding,
+        );
+      }
 
       if (rightIndex > leftIndex && similarity !== null) {
         pairs.push({
@@ -92,21 +105,21 @@ export function buildUserTasteSimilarity(
         });
       }
 
-      return {
+      cells.push({
         userId: rightUser.userId,
         userName: rightUser.userName,
         similarity,
-      };
-    });
+      });
+    }
 
-    return {
+    matrix.push({
       userId: leftUser.userId,
       userName: leftUser.userName,
       itemCount: leftUser.itemCount,
       lastCalculatedAt: leftUser.lastCalculatedAt,
       cells,
-    };
-  });
+    });
+  }
 
   pairs.sort((leftPair, rightPair) => {
     if (rightPair.similarity !== leftPair.similarity) {
