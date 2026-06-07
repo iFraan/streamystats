@@ -27,6 +27,7 @@ import type {
   UserTasteSimilarityCell,
   UserTasteSimilarityPair,
 } from "@/lib/user-taste-similarity";
+import { cn } from "@/lib/utils";
 
 function formatSimilarity(similarity: number | null): string {
   if (similarity === null) {
@@ -36,25 +37,61 @@ function formatSimilarity(similarity: number | null): string {
   return `${Math.round(similarity * 100)}%`;
 }
 
-function getSimilarityBadgeVariant(
-  similarity: number,
-): "default" | "secondary" {
-  return similarity >= 0.8 ? "default" : "secondary";
+function getSimilarityCellTone(similarity: number | null): {
+  className: string;
+} {
+  if (similarity === null) {
+    return {
+      className: "bg-muted text-muted-foreground",
+    };
+  }
+
+  if (similarity === 1) {
+    return {
+      className: "border-red-700 bg-red-700 text-white",
+    };
+  }
+
+  if (similarity >= 0.9) {
+    return {
+      className: "border-purple-700 bg-purple-700 text-white",
+    };
+  }
+
+  if (similarity >= 0.8) {
+    return {
+      className: "border-emerald-700 bg-emerald-700 text-white",
+    };
+  }
+
+  if (similarity >= 0.6) {
+    return {
+      className: "border-blue-700 bg-blue-700 text-white",
+    };
+  }
+
+  if (similarity < 0.2) {
+    return {
+      className: "border-zinc-800 bg-zinc-800 text-white",
+    };
+  }
+
+  return {
+    className: "border-amber-700 bg-amber-700 text-white",
+  };
 }
 
 function SimilarityCell({ cell }: { cell: UserTasteSimilarityCell }) {
-  const opacity = cell.similarity === null ? 0 : 0.12 + cell.similarity * 0.72;
+  const tone = getSimilarityCellTone(cell.similarity);
 
   return (
-    <div className="relative flex h-14 min-w-16 items-center justify-center overflow-hidden rounded-md bg-muted">
-      <div
-        className="absolute inset-0 bg-primary"
-        style={{ opacity }}
-        aria-hidden="true"
-      />
-      <span className="relative text-xs font-medium">
-        {formatSimilarity(cell.similarity)}
-      </span>
+    <div
+      className={cn(
+        "flex h-14 min-w-16 items-center justify-center rounded-md border text-xs font-semibold",
+        tone.className,
+      )}
+    >
+      {formatSimilarity(cell.similarity)}
     </div>
   );
 }
@@ -74,7 +111,13 @@ function TopPairRow({
           {pair.leftUserName} + {pair.rightUserName}
         </p>
       </div>
-      <Badge variant={getSimilarityBadgeVariant(pair.similarity)}>
+      <Badge
+        variant="outline"
+        className={cn(
+          "border text-white",
+          getSimilarityCellTone(pair.similarity).className,
+        )}
+      >
         {formatSimilarity(pair.similarity)}
       </Badge>
     </div>
