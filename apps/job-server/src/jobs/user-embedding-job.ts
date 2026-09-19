@@ -1,62 +1,59 @@
 import {
   db,
   items,
-  sessions,
-  users,
   servers,
+  sessions,
   userEmbeddings,
+  users,
 } from "@streamystats/database";
-import { and, eq, sql, isNotNull, gte } from "drizzle-orm";
+import {
+  normalizeVector,
+  toPgVectorLiteral,
+} from "@streamystats/database/vector";
+import { and, eq, gte, isNotNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { PgBossJob } from "../types/job-status";
-import { normalizeVector, toPgVectorLiteral } from "@streamystats/database/vector";
 
 export const USER_EMBEDDING_JOB_NAME = "calculate-user-embeddings";
 
 /** Users inactive longer than this many days are skipped. */
 const ACTIVE_DAYS_THRESHOLD = 90;
 
-/** Users with fewer than this many watched items with embeddings are skipped. */
-const MIN_ITEMS_FOR_PROFILE = 3;
+/** Minimum positive taste evidence required to persist a profile. */
+const MIN_POSITIVE_EVIDENCE = 0.75;
 
-/** Half-life for recency decay ≈ 200 days (more forgiving). */
+/** Half-life for recency decay is approximately 200 days. */
 const RECENCY_LAMBDA = 0.0035;
 
-/** Weight applied to items the user "bounced" from (<10% watched). */
-const BOUNCE_WEIGHT = -0.3;
+/** A single short start is neutral; repeated aggregate bounces are weak negatives. */
+const BOUNCE_WEIGHT = -0.15;
+const MIN_BOUNCE_SESSIONS = 2;
+const BOUNCE_COMPLETION_THRESHOLD = 0.1;
 
-/** Number of episodes to consider a series "fully engaged" for profile weighting. */
+/** Completion is a confidence curve: 10% is neutral and 85% is fully positive. */
+const FULL_TASTE_COMPLETION = 0.85;
+
+/** Rewatches strengthen affinity without allowing one title to dominate. */
+const REWATCH_BOOST_FACTOR = 0.15;
+const MAX_REWATCH_BOOST = 0.35;
+
+/** Number of fully watched episodes needed for full series engagement. */
 const SERIES_FULL_ENGAGEMENT_EPISODES = 5;
 
-/** Minimum average completion per episode to avoid bounce penalty for series. */
-const SERIES_BOUNCE_THRESHOLD = 0.15;
-
-/** Minimum average completion to avoid bounce penalty for movies. */
-const MOVIES_BOUNCE_THRESHOLD = 0.10;
-
-/** Freshness multiplier is documented but applied at query-time, not here. */
-
-// Track if user embedding HNSW index has been ensured this session (per dimension)
 const userIndexEnsuredForDimension = new Set<number>();
 
 interface CalculateUserEmbeddingsJobData {
   serverId: number;
 }
 
-/**
- * Ensure an HNSW index exists on user_embeddings.embedding for the given
- * dimension, mirroring `ensureEmbeddingIndex` in embedding-jobs.ts.
- */
 async function ensureUserEmbeddingIndex(dimensions: number): Promise<void> {
   if (userIndexEnsuredForDimension.has(dimensions)) return;
 
-  // pgvector HNSW upper bound
   if (dimensions > 2000) {
     console.info(
-      `[user-embeddings-index] dimensions=${dimensions} action=skip reason=exceedsMaxDimensions`
+      `[user-embeddings-index] dimensions=${dimensions} action=skip reason=exceedsMaxDimensions`,
     );
-    await db.execute(
-      sql`DROP INDEX IF EXISTS user_embeddings_embedding_idx`
-    );
+    await db.execute(sql`DROP INDEX IF EXISTS user_embeddings_embedding_idx`);
     userIndexEnsuredForDimension.add(dimensions);
     return;
   }
@@ -71,22 +68,23 @@ async function ensureUserEmbeddingIndex(dimensions: number): Promise<void> {
     `);
 
     if (existing.length > 0) {
-      const def = existing[0].indexdef;
-      const m = def.match(/vector\((\d+)\)/);
-      if (m && Number.parseInt(m[1], 10) === dimensions) {
+      const definition = existing[0].indexdef;
+      const dimensionMatch = definition.match(/vector\((\d+)\)/);
+      if (
+        dimensionMatch &&
+        Number.parseInt(dimensionMatch[1], 10) === dimensions
+      ) {
         userIndexEnsuredForDimension.add(dimensions);
         return;
       }
       console.info(
-        `[user-embeddings-index] dimensions=${dimensions} action=dropExisting reason=dimensionMismatch`
+        `[user-embeddings-index] dimensions=${dimensions} action=dropExisting reason=dimensionMismatch`,
       );
-      await db.execute(
-        sql`DROP INDEX IF EXISTS user_embeddings_embedding_idx`
-      );
+      await db.execute(sql`DROP INDEX IF EXISTS user_embeddings_embedding_idx`);
     }
 
     console.info(
-      `[user-embeddings-index] dimensions=${dimensions} action=create method=hnsw`
+      `[user-embeddings-index] dimensions=${dimensions} action=create method=hnsw`,
     );
     await db.execute(sql`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS user_embeddings_embedding_idx
@@ -99,191 +97,331 @@ async function ensureUserEmbeddingIndex(dimensions: number): Promise<void> {
   }
 }
 
+interface PlaybackSessionEvidence {
+  playDuration: number | null;
+  runtimeTicks: number | null;
+  completed: boolean;
+  endTime: Date | null;
+  startTime: Date | null;
+  createdAt: Date;
+}
+
+interface EvidenceAccumulator {
+  lifetimeCoverage: number;
+  decayedCoverage: number;
+  completedEvidence: number;
+  latestDecay: number;
+  coverageSessionCount: number;
+}
 
 interface WatchedItemForProfile {
   itemId: string;
   embedding: number[];
-  type: string; // "Movie" or "Episode"
-  seriesId: string | null;
-  totalPlayDuration: number; // in ticks
-  expectedRuntime: number; // in ticks (runtimeTicks from items)
-  lastWatchedMs: number; // epoch ms of last watch
-  episodeCount: number; // 1 for movies, actual count for series groups
+  weight: number;
 }
 
-async function computeUserProfile(
-  serverId: number,
-  userId: string,
-  now: number
-): Promise<{ embedding: number[]; itemCount: number } | null> {
-  // ── Fetch movie watch data ───────────────────────────────────────────────
+function createEvidenceAccumulator(): EvidenceAccumulator {
+  return {
+    lifetimeCoverage: 0,
+    decayedCoverage: 0,
+    completedEvidence: 0,
+    latestDecay: 0,
+    coverageSessionCount: 0,
+  };
+}
+
+function calculateRecencyDecay({
+  session,
+  now,
+}: {
+  session: PlaybackSessionEvidence;
+  now: number;
+}): number {
+  const watchedAt = session.endTime ?? session.startTime ?? session.createdAt;
+  const watchedAtMs = watchedAt.getTime();
+  const daysSinceWatched = Number.isFinite(watchedAtMs)
+    ? Math.max(0, now - watchedAtMs) / (1000 * 60 * 60 * 24)
+    : 0;
+
+  return Math.exp(-RECENCY_LAMBDA * daysSinceWatched);
+}
+
+function addSessionEvidence({
+  accumulator,
+  session,
+  now,
+}: {
+  accumulator: EvidenceAccumulator;
+  session: PlaybackSessionEvidence;
+  now: number;
+}): void {
+  const recencyDecay = calculateRecencyDecay({ session, now });
+  accumulator.latestDecay = Math.max(accumulator.latestDecay, recencyDecay);
+
+  if (session.completed) {
+    accumulator.completedEvidence = Math.max(
+      accumulator.completedEvidence,
+      recencyDecay,
+    );
+  }
+
+  const runtimeSeconds = (session.runtimeTicks ?? 0) / 10_000_000;
+  const playDuration = session.playDuration ?? 0;
+  if (runtimeSeconds <= 0 || playDuration <= 0) return;
+
+  const coverage = playDuration / runtimeSeconds;
+  accumulator.lifetimeCoverage += coverage;
+  accumulator.decayedCoverage += coverage * recencyDecay;
+  accumulator.coverageSessionCount++;
+}
+
+function calculateTasteStrength(coverage: number): number {
+  return Math.min(
+    Math.max(
+      (coverage - BOUNCE_COMPLETION_THRESHOLD) /
+        (FULL_TASTE_COMPLETION - BOUNCE_COMPLETION_THRESHOLD),
+      0,
+    ),
+    1,
+  );
+}
+
+function calculateEvidenceWeight(evidence: EvidenceAccumulator): number {
+  const positiveStrength = Math.max(
+    calculateTasteStrength(evidence.decayedCoverage),
+    evidence.completedEvidence,
+  );
+
+  if (positiveStrength > 0) {
+    const rewatchEvidence = Math.max(0, evidence.decayedCoverage - 1);
+    const rewatchBoost =
+      1 +
+      Math.min(
+        MAX_REWATCH_BOOST,
+        REWATCH_BOOST_FACTOR * Math.log1p(rewatchEvidence),
+      );
+    return positiveStrength * rewatchBoost;
+  }
+
+  if (
+    evidence.coverageSessionCount >= MIN_BOUNCE_SESSIONS &&
+    evidence.lifetimeCoverage < BOUNCE_COMPLETION_THRESHOLD
+  ) {
+    return BOUNCE_WEIGHT * evidence.latestDecay;
+  }
+
+  return 0;
+}
+
+async function computeUserProfile({
+  serverId,
+  userId,
+  now,
+  dimensions,
+}: {
+  serverId: number;
+  userId: string;
+  now: number;
+  dimensions: number;
+}): Promise<{ embedding: number[]; itemCount: number } | null> {
+  const episodeItems = alias(items, "episode_items");
   const movieRows = await db
     .select({
       itemId: sessions.itemId,
       embedding: items.embedding,
-      type: items.type,
-      seriesId: items.seriesId,
-      totalPlayDuration:
-        sql<number>`SUM(${sessions.playDuration})`.as("totalPlayDuration"),
-      expectedRuntime: items.runtimeTicks,
-      lastWatched: sql<string>`MAX(${sessions.endTime})`.as("lastWatched"),
+      playDuration: sessions.playDuration,
+      sessionRuntimeTicks: sessions.runtimeTicks,
+      itemRuntimeTicks: items.runtimeTicks,
+      completed: sessions.completed,
+      endTime: sessions.endTime,
+      startTime: sessions.startTime,
+      createdAt: sessions.createdAt,
     })
     .from(sessions)
-    .innerJoin(items, and(eq(items.id, sessions.itemId), eq(items.type, "Movie")))
+    .innerJoin(
+      items,
+      and(eq(items.id, sessions.itemId), eq(items.type, "Movie")),
+    )
     .where(
       and(
         eq(sessions.serverId, serverId),
         eq(sessions.userId, userId),
         isNotNull(items.embedding),
-        isNotNull(sessions.playDuration)
-      )
-    )
-    .groupBy(sessions.itemId, items.id);
+      ),
+    );
 
-  // ── Fetch series watch data (episodes aggregated to series) ──────────────
   const seriesRows = await db
     .select({
       seriesId: sessions.seriesId,
+      episodeId: sessions.itemId,
       embedding: items.embedding,
-      episodeCount:
-        sql<number>`COUNT(DISTINCT ${sessions.itemId})`.as("episodeCount"),
-      totalPlayDuration:
-        sql<number>`SUM(${sessions.playDuration})`.as("totalPlayDuration"),
-      avgEpisodeRuntimeTicks:
-        sql<number>`AVG(${sessions.runtimeTicks})`.as("avgEpisodeRuntimeTicks"),
-      lastWatched: sql<string>`MAX(${sessions.endTime})`.as("lastWatched"),
+      playDuration: sessions.playDuration,
+      sessionRuntimeTicks: sessions.runtimeTicks,
+      itemRuntimeTicks: episodeItems.runtimeTicks,
+      completed: sessions.completed,
+      endTime: sessions.endTime,
+      startTime: sessions.startTime,
+      createdAt: sessions.createdAt,
     })
     .from(sessions)
     .innerJoin(
       items,
-      and(eq(items.id, sessions.seriesId), eq(items.type, "Series"))
+      and(eq(items.id, sessions.seriesId), eq(items.type, "Series")),
     )
+    .leftJoin(episodeItems, eq(episodeItems.id, sessions.itemId))
     .where(
       and(
         eq(sessions.serverId, serverId),
         eq(sessions.userId, userId),
         isNotNull(sessions.seriesId),
+        isNotNull(sessions.itemId),
         isNotNull(items.embedding),
-        isNotNull(sessions.playDuration)
-      )
-    )
-    .groupBy(sessions.seriesId, items.id);
+      ),
+    );
 
-  // ── Build unified list ───────────────────────────────────────────────────
   const watched: WatchedItemForProfile[] = [];
+  const movieEvidence = new Map<
+    string,
+    { embedding: number[]; evidence: EvidenceAccumulator }
+  >();
 
   for (const row of movieRows) {
     if (!row.embedding || !row.itemId) continue;
-    const expectedRuntime = row.expectedRuntime ?? 0;
-    const totalPlayDuration = row.totalPlayDuration ?? 0;
-    watched.push({
-      itemId: row.itemId,
+    const existing = movieEvidence.get(row.itemId) ?? {
       embedding: row.embedding,
-      type: "Movie",
-      seriesId: null,
-      totalPlayDuration,
-      expectedRuntime,
-      lastWatchedMs: row.lastWatched
-        ? new Date(row.lastWatched).getTime()
-        : now,
-      episodeCount: 1,
+      evidence: createEvidenceAccumulator(),
+    };
+    addSessionEvidence({
+      accumulator: existing.evidence,
+      session: {
+        playDuration: row.playDuration,
+        runtimeTicks: row.itemRuntimeTicks ?? row.sessionRuntimeTicks,
+        completed: row.completed,
+        endTime: row.endTime,
+        startTime: row.startTime,
+        createdAt: row.createdAt,
+      },
+      now,
+    });
+    movieEvidence.set(row.itemId, existing);
+  }
+
+  for (const [itemId, item] of movieEvidence) {
+    watched.push({
+      itemId,
+      embedding: item.embedding,
+      weight: calculateEvidenceWeight(item.evidence),
     });
   }
+
+  const seriesEvidence = new Map<
+    string,
+    {
+      embedding: number[];
+      episodes: Map<string, EvidenceAccumulator>;
+    }
+  >();
 
   for (const row of seriesRows) {
-    if (!row.embedding || !row.seriesId) continue;
-    const episodeCount = row.episodeCount ?? 1;
-    const avgEpisodeRuntimeTicks = row.avgEpisodeRuntimeTicks ?? 0;
-    // Total expected = avgEpisodeRuntime * episodeCount (in ticks)
-    const totalExpectedRuntime = avgEpisodeRuntimeTicks * episodeCount;
-    watched.push({
-      itemId: row.seriesId,
+    if (!row.embedding || !row.seriesId || !row.episodeId) continue;
+    const series = seriesEvidence.get(row.seriesId) ?? {
       embedding: row.embedding,
-      type: "Series",
-      seriesId: row.seriesId,
-      totalPlayDuration: row.totalPlayDuration ?? 0,
-      expectedRuntime: totalExpectedRuntime,
-      lastWatchedMs: row.lastWatched
-        ? new Date(row.lastWatched).getTime()
-        : now,
-      episodeCount,
+      episodes: new Map<string, EvidenceAccumulator>(),
+    };
+    const episode =
+      series.episodes.get(row.episodeId) ?? createEvidenceAccumulator();
+    addSessionEvidence({
+      accumulator: episode,
+      session: {
+        playDuration: row.playDuration,
+        runtimeTicks: row.itemRuntimeTicks ?? row.sessionRuntimeTicks,
+        completed: row.completed,
+        endTime: row.endTime,
+        startTime: row.startTime,
+        createdAt: row.createdAt,
+      },
+      now,
+    });
+    series.episodes.set(row.episodeId, episode);
+    seriesEvidence.set(row.seriesId, series);
+  }
+
+  for (const [seriesId, series] of seriesEvidence) {
+    let positiveEpisodeEvidence = 0;
+    let strongestNegativeEvidence = 0;
+
+    for (const episode of series.episodes.values()) {
+      const episodeWeight = calculateEvidenceWeight(episode);
+      if (episodeWeight > 0) {
+        positiveEpisodeEvidence += episodeWeight;
+      } else {
+        strongestNegativeEvidence = Math.min(
+          strongestNegativeEvidence,
+          episodeWeight,
+        );
+      }
+    }
+
+    const weight =
+      positiveEpisodeEvidence > 0
+        ? Math.min(positiveEpisodeEvidence / SERIES_FULL_ENGAGEMENT_EPISODES, 1)
+        : strongestNegativeEvidence;
+    watched.push({
+      itemId: seriesId,
+      embedding: series.embedding,
+      weight,
     });
   }
 
-  if (watched.length < MIN_ITEMS_FOR_PROFILE) return null;
-
-  // ── Compute weighted average ─────────────────────────────────────────────
-  const dims = watched[0].embedding.length;
-  const profile = new Array<number>(dims).fill(0);
+  const profile = new Array<number>(dimensions).fill(0);
   let totalAbsWeight = 0;
+  let positiveEvidence = 0;
+  let positiveContributorCount = 0;
 
   for (const item of watched) {
-    if (item.embedding.length !== dims) {
+    if (item.weight === 0) continue;
+    if (item.embedding.length !== dimensions) {
       console.warn(
-        `[user-embeddings] userId=${userId} itemId=${item.itemId} action=skipDimensionMismatch expected=${dims} got=${item.embedding.length}`
+        `[user-embeddings] userId=${userId} itemId=${item.itemId} action=skipDimensionMismatch expected=${dimensions} got=${item.embedding.length}`,
       );
       continue;
     }
 
-    const daysSinceWatched =
-      (now - item.lastWatchedMs) / (1000 * 60 * 60 * 24);
-    const recencyDecay = Math.exp(-RECENCY_LAMBDA * daysSinceWatched);
-
-    let weight: number;
-    if (item.type === "Movie") {
-      const expectedRuntimeSeconds = item.expectedRuntime / 10_000_000;
-      const completionRatio =
-        expectedRuntimeSeconds > 0
-          ? item.totalPlayDuration / expectedRuntimeSeconds
-          : 0;
-
-      if (completionRatio < MOVIES_BOUNCE_THRESHOLD) {
-        weight = BOUNCE_WEIGHT;
-      } else {
-        weight = completionRatio * recencyDecay;
-      }
-    } else {
-      // Series: combine episode count engagement with completion ratio
-      const engagement = Math.min(
-        item.episodeCount / SERIES_FULL_ENGAGEMENT_EPISODES,
-        1.0
-      );
-
-      const expectedRuntimeSeconds = item.expectedRuntime / 10_000_000;
-      const avgCompletionPerEpisode =
-        expectedRuntimeSeconds > 0 && item.episodeCount > 0
-          ? item.totalPlayDuration / expectedRuntimeSeconds
-          : 0;
-
-      if (avgCompletionPerEpisode < SERIES_BOUNCE_THRESHOLD) {
-        weight = BOUNCE_WEIGHT; // Bounced from the series
-      } else {
-        const rewatchBoost = Math.max(avgCompletionPerEpisode, 1.0);
-        weight = engagement * rewatchBoost * recencyDecay;
-      }
+    if (item.weight > 0) {
+      positiveEvidence += item.weight;
+      positiveContributorCount++;
     }
 
-    for (let d = 0; d < dims; d++) {
-      profile[d] += weight * item.embedding[d];
+    for (let dimension = 0; dimension < dimensions; dimension++) {
+      profile[dimension] += item.weight * item.embedding[dimension];
     }
-    totalAbsWeight += Math.abs(weight);
+    totalAbsWeight += Math.abs(item.weight);
   }
 
-  if (totalAbsWeight === 0) return null;
+  if (
+    totalAbsWeight === 0 ||
+    positiveEvidence < MIN_POSITIVE_EVIDENCE ||
+    positiveContributorCount === 0
+  ) {
+    return null;
+  }
 
-  // Average, then normalize to unit length
-  for (let d = 0; d < dims; d++) {
-    profile[d] /= totalAbsWeight;
+  const magnitudeSquared = profile.reduce(
+    (total, value) => total + value * value,
+    0,
+  );
+  if (!Number.isFinite(magnitudeSquared) || magnitudeSquared < 1e-20) {
+    return null;
   }
 
   return {
     embedding: normalizeVector(profile),
-    itemCount: watched.length,
+    itemCount: positiveContributorCount,
   };
 }
 
 export async function calculateUserEmbeddingsJob(
-  job: PgBossJob<CalculateUserEmbeddingsJobData>
+  job: PgBossJob<CalculateUserEmbeddingsJobData>,
 ) {
   const { serverId } = job.data;
   const startTime = Date.now();
@@ -291,7 +429,6 @@ export async function calculateUserEmbeddingsJob(
   console.log(`[user-embeddings] action=start serverId=${serverId}`);
 
   try {
-    // ── Get server embedding dimensions ──────────────────────────────────
     const server = await db
       .select({
         embeddingDimensions: servers.embeddingDimensions,
@@ -301,34 +438,28 @@ export async function calculateUserEmbeddingsJob(
       .limit(1);
 
     const dimensions = server[0]?.embeddingDimensions ?? 1536;
-
-    // Ensure HNSW index for user embeddings
     await ensureUserEmbeddingIndex(dimensions);
 
-    // ── Get active users ─────────────────────────────────────────────────
     const cutoff = new Date(
-      Date.now() - ACTIVE_DAYS_THRESHOLD * 24 * 60 * 60 * 1000
+      Date.now() - ACTIVE_DAYS_THRESHOLD * 24 * 60 * 60 * 1000,
     );
 
     const activeUsers = await db
       .select({ id: users.id })
       .from(users)
       .where(
-        and(
-          eq(users.serverId, serverId),
-          gte(users.lastActivityDate, cutoff)
-        )
+        and(eq(users.serverId, serverId), gte(users.lastActivityDate, cutoff)),
       );
 
     if (activeUsers.length === 0) {
       console.log(
-        `[user-embeddings] action=complete serverId=${serverId} users=0`
+        `[user-embeddings] action=complete serverId=${serverId} users=0`,
       );
       return { usersProcessed: 0, usersSkipped: 0 };
     }
 
     console.log(
-      `[user-embeddings] serverId=${serverId} activeUsers=${activeUsers.length}`
+      `[user-embeddings] serverId=${serverId} activeUsers=${activeUsers.length}`,
     );
 
     let processed = 0;
@@ -336,14 +467,26 @@ export async function calculateUserEmbeddingsJob(
     const now = Date.now();
 
     for (const user of activeUsers) {
-      const result = await computeUserProfile(serverId, user.id, now);
+      const result = await computeUserProfile({
+        serverId,
+        userId: user.id,
+        now,
+        dimensions,
+      });
 
       if (!result) {
+        await db
+          .delete(userEmbeddings)
+          .where(
+            and(
+              eq(userEmbeddings.userId, user.id),
+              eq(userEmbeddings.serverId, serverId),
+            ),
+          );
         skipped++;
         continue;
       }
 
-      // Upsert
       const upsertNow = new Date();
       await db
         .insert(userEmbeddings)
@@ -369,15 +512,12 @@ export async function calculateUserEmbeddingsJob(
 
     const duration = Date.now() - startTime;
     console.log(
-      `[user-embeddings] action=complete serverId=${serverId} processed=${processed} skipped=${skipped} durationMs=${duration}`
+      `[user-embeddings] action=complete serverId=${serverId} processed=${processed} skipped=${skipped} durationMs=${duration}`,
     );
 
     return { usersProcessed: processed, usersSkipped: skipped };
   } catch (error) {
-    console.error(
-      `[user-embeddings] action=error serverId=${serverId}`,
-      error
-    );
+    console.error(`[user-embeddings] action=error serverId=${serverId}`, error);
     throw error;
   }
 }

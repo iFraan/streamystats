@@ -450,6 +450,8 @@ exports.sessions = (0, pg_core_1.pgTable)("sessions", {
 }, (table) => [
     // Performance indexes for common query patterns
     (0, pg_core_1.index)("sessions_server_user_idx").on(table.serverId, table.userId),
+    (0, pg_core_1.index)("sessions_server_user_item_idx").on(table.serverId, table.userId, table.itemId),
+    (0, pg_core_1.index)("sessions_server_user_series_idx").on(table.serverId, table.userId, table.seriesId),
     (0, pg_core_1.index)("sessions_server_item_idx").on(table.serverId, table.itemId),
     (0, pg_core_1.index)("sessions_server_created_at_idx").on(table.serverId, table.createdAt),
     (0, pg_core_1.index)("sessions_server_start_time_idx").on(table.serverId, table.startTime),
@@ -489,7 +491,9 @@ exports.hiddenRecommendations = (0, pg_core_1.pgTable)("hidden_recommendations",
         .references(() => exports.items.id, { onDelete: "cascade" })
         .notNull(),
     createdAt: (0, pg_core_1.timestamp)("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+    (0, pg_core_1.index)("hidden_recommendations_server_user_item_idx").on(table.serverId, table.userId, table.itemId),
+]);
 // Activity locations table - geolocated IP data for activities
 exports.activityLocations = (0, pg_core_1.pgTable)("activity_locations", {
     id: (0, pg_core_1.serial)("id").primaryKey(),

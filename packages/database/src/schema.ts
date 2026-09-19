@@ -598,6 +598,16 @@ export const sessions = pgTable(
   (table) => [
     // Performance indexes for common query patterns
     index("sessions_server_user_idx").on(table.serverId, table.userId),
+    index("sessions_server_user_item_idx").on(
+      table.serverId,
+      table.userId,
+      table.itemId
+    ),
+    index("sessions_server_user_series_idx").on(
+      table.serverId,
+      table.userId,
+      table.seriesId
+    ),
     index("sessions_server_item_idx").on(table.serverId, table.itemId),
     index("sessions_server_created_at_idx").on(table.serverId, table.createdAt),
     index("sessions_server_start_time_idx").on(table.serverId, table.startTime),
@@ -635,17 +645,27 @@ export const activityLogCursors = pgTable("activity_log_cursors", {
 });
 
 // Hidden recommendations table - stores user's hidden recommendations
-export const hiddenRecommendations = pgTable("hidden_recommendations", {
-  id: serial("id").primaryKey(),
-  serverId: integer("server_id")
-    .references(() => servers.id, { onDelete: "cascade" })
-    .notNull(),
-  userId: text("user_id").notNull(), // Jellyfin user ID
-  itemId: text("item_id")
-    .references(() => items.id, { onDelete: "cascade" })
-    .notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const hiddenRecommendations = pgTable(
+  "hidden_recommendations",
+  {
+    id: serial("id").primaryKey(),
+    serverId: integer("server_id")
+      .references(() => servers.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: text("user_id").notNull(), // Jellyfin user ID
+    itemId: text("item_id")
+      .references(() => items.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("hidden_recommendations_server_user_item_idx").on(
+      table.serverId,
+      table.userId,
+      table.itemId
+    ),
+  ]
+);
 
 // Activity locations table - geolocated IP data for activities
 export const activityLocations = pgTable(

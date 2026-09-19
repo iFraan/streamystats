@@ -15,7 +15,8 @@ import {
   inArray,
   isNotNull,
   isNull,
-  notInArray,
+  notExists,
+  type SQL,
   sql,
 } from "drizzle-orm";
 import { getStatisticsExclusions } from "./exclusions";
@@ -63,33 +64,83 @@ export interface RecommendationCardItem {
 export interface RecommendationResult {
   item: RecommendationCardItem;
   similarity: number;
-  basedOn: RecommendationCardItem[]; // Always [] for profile-based, kept for API compat
+  basedOn: RecommendationCardItem[];
 }
 
-/** Boost factor for items added in the last 14 days */
-const FRESHNESS_BOOST = 1.1;
-const FRESHNESS_WINDOW_DAYS = 14;
+/** Freshness affects ranking without changing the similarity shown to users. */
+const FRESHNESS_MAX_BOOST = 0.03;
+const FRESHNESS_DECAY_DAYS = 14;
 
-/**
- * Minimum similarity score to include in results.
- * Filters out noise from items with near-zero or negative cosine similarity.
- */
+/** Filters out items with near-zero or negative cosine similarity. */
 const MIN_SIMILARITY = 0.05;
 
-/**
- * Maximum number of item IDs to pass in the exclusion list.
- * Postgres handles NOT IN efficiently up to ~5000 values;
- * beyond that, consider a temp table or NOT EXISTS subquery.
- */
-const MAX_EXCLUSION_LIST_SIZE = 5000;
+const MEANINGFUL_PLAY_RATIO = 0.2;
+const MAX_MEANINGFUL_PLAY_SECONDS = 10 * 60;
+const MIN_REPEATED_START_SECONDS = 30;
+
+function getMeaningfullyWatchedExclusion({
+  serverId,
+  userId,
+  targetType,
+}: {
+  serverId: number;
+  userId: string;
+  targetType: "Movie" | "Series" | "all";
+}): SQL {
+  const itemReference =
+    targetType === "Movie"
+      ? sql`watched_sessions.item_id = ${items.id}`
+      : targetType === "Series"
+        ? sql`watched_sessions.series_id = ${items.id}`
+        : sql`(
+            (${items.type} = 'Movie' AND watched_sessions.item_id = ${items.id})
+            OR
+            (${items.type} = 'Series' AND watched_sessions.series_id = ${items.id})
+          )`;
+
+  return sql`NOT EXISTS (
+    SELECT 1
+    FROM ${sessions} AS watched_sessions
+    WHERE watched_sessions.server_id = ${serverId}
+      AND watched_sessions.user_id = ${userId}
+      AND ${itemReference}
+    HAVING
+      BOOL_OR(watched_sessions.completed)
+      OR COALESCE(SUM(watched_sessions.play_duration), 0) >=
+        CASE
+          WHEN ${items.type} = 'Movie' THEN
+            CASE
+              WHEN COALESCE(${items.runtimeTicks}, MAX(watched_sessions.runtime_ticks), 0) > 0
+                THEN LEAST(
+                  ${MAX_MEANINGFUL_PLAY_SECONDS},
+                  COALESCE(${items.runtimeTicks}, MAX(watched_sessions.runtime_ticks))
+                    / 10000000.0 * ${MEANINGFUL_PLAY_RATIO}
+                )
+              ELSE ${MAX_MEANINGFUL_PLAY_SECONDS}
+            END
+          ELSE ${MAX_MEANINGFUL_PLAY_SECONDS}
+        END
+      OR BOOL_OR(
+        COALESCE(watched_sessions.play_duration, 0) >=
+          CASE
+            WHEN COALESCE(watched_sessions.runtime_ticks, 0) > 0
+              THEN LEAST(
+                ${MAX_MEANINGFUL_PLAY_SECONDS},
+                watched_sessions.runtime_ticks / 10000000.0 * ${MEANINGFUL_PLAY_RATIO}
+              )
+            ELSE ${MAX_MEANINGFUL_PLAY_SECONDS}
+          END
+      )
+      OR COUNT(*) FILTER (
+        WHERE COALESCE(watched_sessions.play_duration, 0) >= ${MIN_REPEATED_START_SECONDS}
+      ) >= 2
+  )`;
+}
 
 /**
  * Get recommendations using the pre-computed user taste profile.
  *
- * This replaces the old N+1 per-movie cosine queries with a single
- * HNSW-indexed vector search using the unified user embedding.
- *
- * @param targetType - "Movie" or "Series" — filters which items to recommend
+ * @param targetType - "Movie", "Series", or both.
  */
 export async function getProfileRecommendations({
   serverId,
@@ -106,7 +157,6 @@ export async function getProfileRecommendations({
   offset?: number;
   viewerUserId?: string | null;
 }): Promise<RecommendationResult[]> {
-  // ── 1. Fetch pre-computed user profile ───────────────────────────────────
   const userProfile = await db
     .select({ embedding: userEmbeddings.embedding })
     .from(userEmbeddings)
@@ -119,7 +169,6 @@ export async function getProfileRecommendations({
     .limit(1);
 
   if (userProfile.length === 0 || !userProfile[0].embedding) {
-    // No profile yet — return empty. The old logic can be used as fallback by callers.
     return [];
   }
 
@@ -129,110 +178,68 @@ export async function getProfileRecommendations({
     viewerUserId === undefined ? userId : (viewerUserId ?? undefined),
   );
 
-  // ── 2. Get hidden + watched item IDs for exclusion ───────────────────────
-  const [hiddenRows, watchedMovieRows, watchedSeriesRows] = await Promise.all([
+  const similarity = sql<number>`1 - (${cosineDistance(
+    items.embedding,
+    profileVector,
+  )})`;
+  const freshness = sql<number>`
+    CASE
+      WHEN ${items.dateCreated} IS NULL THEN 0
+      ELSE EXP(
+        -GREATEST(
+          EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - ${items.dateCreated})) / 86400.0,
+          0
+        ) / ${FRESHNESS_DECAY_DAYS}
+      )
+    END
+  `;
+  const rankingScore = sql<number>`
+    (${similarity}) + ${FRESHNESS_MAX_BOOST} * (${freshness})
+  `;
+
+  const hiddenExclusion = notExists(
     db
-      .select({ itemId: hiddenRecommendations.itemId })
+      .select({ value: sql`1` })
       .from(hiddenRecommendations)
       .where(
         and(
           eq(hiddenRecommendations.serverId, serverId),
           eq(hiddenRecommendations.userId, userId),
+          eq(hiddenRecommendations.itemId, items.id),
         ),
-      )
-      .catch(() => [] as { itemId: string }[]),
-
-    targetType === "Movie" || targetType === "all"
-      ? db
-          .selectDistinct({ itemId: sessions.itemId })
-          .from(sessions)
-          .where(
-            and(
-              eq(sessions.serverId, serverId),
-              eq(sessions.userId, userId),
-              isNotNull(sessions.itemId),
-            ),
-          )
-      : Promise.resolve([]),
-
-    targetType === "Series" || targetType === "all"
-      ? db
-          .selectDistinct({ itemId: sessions.seriesId })
-          .from(sessions)
-          .where(
-            and(
-              eq(sessions.serverId, serverId),
-              eq(sessions.userId, userId),
-              isNotNull(sessions.seriesId),
-            ),
-          )
-      : Promise.resolve([]),
-  ]);
-
-  const excludeIds = new Set<string>();
-  for (const row of hiddenRows) {
-    if (row.itemId) excludeIds.add(row.itemId);
-  }
-  for (const row of watchedMovieRows) {
-    if (row.itemId) excludeIds.add(row.itemId);
-  }
-  for (const row of watchedSeriesRows) {
-    if (row.itemId) excludeIds.add(row.itemId);
-  }
-
-  const excludeArray = Array.from(excludeIds);
-
-  // ── 3. Single vector search with freshness boost ─────────────────
-  const freshnessThreshold = new Date(
-    Date.now() - FRESHNESS_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+      ),
   );
 
-  const adjustedSimilarity = sql<number>`
-    CASE
-      WHEN ${items.createdAt} > ${freshnessThreshold.toISOString()}
-      THEN (1 - (${cosineDistance(items.embedding, profileVector)})) * ${FRESHNESS_BOOST}
-      ELSE (1 - (${cosineDistance(items.embedding, profileVector)}))
-    END
-  `;
-
-  const conditions = [
+  const conditions: SQL[] = [
     eq(items.serverId, serverId),
     targetType === "all"
       ? inArray(items.type, ["Movie", "Series"])
       : eq(items.type, targetType),
     isNull(items.deletedAt),
     isNotNull(items.embedding),
-    sql`(1 - (${cosineDistance(items.embedding, profileVector)})) > ${MIN_SIMILARITY}`,
-    itemLibraryExclusion,
+    sql`${similarity} > ${MIN_SIMILARITY}`,
+    hiddenExclusion,
+    getMeaningfullyWatchedExclusion({ serverId, userId, targetType }),
   ];
 
-  // Cap the exclusion list to avoid perf degradation with very large NOT IN clauses
-  if (excludeArray.length > 0) {
-    if (excludeArray.length > MAX_EXCLUSION_LIST_SIZE) {
-      console.warn(
-        `[recommendations] userId=${userId} exclusionListSize=${excludeArray.length} action=capped max=${MAX_EXCLUSION_LIST_SIZE}`,
-      );
-    }
-    conditions.push(
-      notInArray(items.id, excludeArray.slice(0, MAX_EXCLUSION_LIST_SIZE)),
-    );
+  if (itemLibraryExclusion) {
+    conditions.push(itemLibraryExclusion);
   }
 
   const candidates = await db
     .select({
       item: recommendationItemCardSelect,
-      similarity: adjustedSimilarity,
+      similarity,
     })
     .from(items)
     .where(and(...conditions))
-    .orderBy(desc(adjustedSimilarity))
+    .orderBy(desc(rankingScore))
     .limit(limit)
     .offset(offset);
 
-  // ── 4. Map to result shape ────────────────────────────────────────────────
   return candidates.map((row) => ({
     item: row.item,
     similarity: Number(row.similarity),
-    basedOn: [], // Profile-based — no individual attribution
+    basedOn: [],
   }));
 }
