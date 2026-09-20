@@ -1,5 +1,3 @@
-"use server";
-
 import "server-only";
 
 import {
@@ -10,7 +8,9 @@ import {
   userEmbeddings,
 } from "@streamystats/database";
 import type { EmbeddingJobResult, Server } from "@streamystats/database/schema";
+import { generateText } from "ai";
 import { and, count, desc, eq, sql } from "drizzle-orm";
+import { type ChatProvider, createChatModel } from "@/lib/ai/providers";
 import { parseDeviceName } from "@/lib/device";
 import { jellyfinHeaders } from "@/lib/jellyfin-auth";
 import type { ServerPublic } from "@/lib/types";
@@ -727,10 +727,19 @@ export const updateServerConnection = async ({
 
     // Normalize URL by removing trailing slash
     const normalizedUrl = url.endsWith("/") ? url.slice(0, -1) : url;
+    const normalizedInternalUrl = internalUrl
+      ? internalUrl.endsWith("/")
+        ? internalUrl.slice(0, -1)
+        : internalUrl
+      : null;
+    // Server-to-server requests use the internal URL when configured (falling back
+    // to the external URL), so test connectivity against that effective URL — the
+    // external URL is client-facing and may be unreachable from the server.
+    const effectiveUrl = normalizedInternalUrl ?? normalizedUrl;
 
     // Test connection to new Jellyfin server with new API key
     try {
-      const testResponse = await fetch(`${normalizedUrl}/System/Info`, {
+      const testResponse = await fetch(`${effectiveUrl}/System/Info`, {
         method: "GET",
         headers: jellyfinHeaders(apiKey),
         signal: AbortSignal.timeout(5000),
@@ -777,7 +786,7 @@ export const updateServerConnection = async ({
       // Authenticate user credentials against new server.
       // Use a unique DeviceId so this doesn't revoke existing browser sessions.
       const authResponse = await fetch(
-        `${normalizedUrl}/Users/AuthenticateByName`,
+        `${effectiveUrl}/Users/AuthenticateByName`,
         {
           method: "POST",
           headers: jellyfinHeaders(apiKey, {
@@ -802,7 +811,7 @@ export const updateServerConnection = async ({
       const authData = await authResponse.json();
 
       // Validate authentication response structure
-      if (!authData || !authData.AccessToken) {
+      if (!authData?.AccessToken) {
         return {
           success: false,
           message: "Invalid authentication response from server",
@@ -812,7 +821,7 @@ export const updateServerConnection = async ({
       const accessToken = authData.AccessToken;
       const user = authData.User;
 
-      if (!user || !user.Id) {
+      if (!user?.Id) {
         return {
           success: false,
           message: "Invalid user data in authentication response",
@@ -904,7 +913,7 @@ export const updateServerConnection = async ({
 
 // AI Chat configuration functions
 
-export type ChatProvider = "openai-compatible" | "ollama" | "anthropic";
+export type { ChatProvider };
 
 export interface ChatAIConfig {
   provider: ChatProvider;
@@ -952,7 +961,7 @@ export const getChatConfig = async ({
 }): Promise<ChatAIConfig | null> => {
   try {
     const server = await getServerWithSecrets({ serverId });
-    if (!server || !server.chatProvider || !server.chatModel) {
+    if (!server?.chatProvider || !server.chatModel) {
       return null;
     }
     return {
@@ -990,6 +999,24 @@ export const testChatConnection = async ({
   config: ChatAIConfig;
 }): Promise<{ success: boolean; message: string }> => {
   try {
+    if (config.provider === "gemini") {
+      const model = createChatModel({
+        ...config,
+        apiKey: config.apiKey || null,
+      });
+      if (!model) {
+        return { success: false, message: "A chat model is required" };
+      }
+      await generateText({
+        model,
+        prompt: "Hi",
+        maxOutputTokens: 32,
+        maxRetries: 0,
+        abortSignal: AbortSignal.timeout(15000),
+      });
+      return { success: true, message: "Connection successful" };
+    }
+
     if (config.provider === "anthropic") {
       const response = await fetch(
         `${config.baseUrl || "https://api.anthropic.com"}/v1/messages`,

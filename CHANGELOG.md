@@ -1,5 +1,67 @@
 # Changelog
 
+## [2.20.0](https://github.com/fredrikburmester/streamystats/compare/v2.19.2...v2.20.0) (2026-09-12)
+
+
+### Features
+
+* Gemini embeddings ([#419](https://github.com/fredrikburmester/streamystats/issues/419)) ([422e46d](https://github.com/fredrikburmester/streamystats/commit/422e46d8d17b7f4509d4abcfd4b62d93a83d206b))
+
+
+### Bug Fixes
+
+* deduplicate media source records in batch insert to prevent duplicate key errors ([#444](https://github.com/fredrikburmester/streamystats/issues/444)) ([2e041ec](https://github.com/fredrikburmester/streamystats/commit/2e041ecfe80d0f3497c2d0724990022c1594a5c6))
+* detect preset should exempt ollama (similar to anthropic) ([#381](https://github.com/fredrikburmester/streamystats/issues/381)) ([a43911d](https://github.com/fredrikburmester/streamystats/commit/a43911db7a07ef7462d95a7604d387fec059946e))
+* resolve 5 critical security and data integrity vulnerabilities ([#577](https://github.com/fredrikburmester/streamystats/issues/577)) ([838c2c2](https://github.com/fredrikburmester/streamystats/commit/838c2c2513036d8d3af5aabc3b4a0f1cc8142053))
+
+
+### Performance Improvements
+
+* optimize vector search, middleware proxy, bundle size, poller, and db indexes ([#576](https://github.com/fredrikburmester/streamystats/issues/576)) ([6b721d5](https://github.com/fredrikburmester/streamystats/commit/6b721d545f58c9a9087049f82ed4f9c50ce6ecf1))
+
+## [2.19.2](https://github.com/fredrikburmester/streamystats/compare/v2.19.1...v2.19.2) (2026-09-12)
+
+
+### Bug Fixes
+
+* migrate replaced item history atomically and report sync failures ([#573](https://github.com/fredrikburmester/streamystats/issues/573)) ([14d69d4](https://github.com/fredrikburmester/streamystats/commit/14d69d4d0cf0ebae297e2740724104e5e32760cd))
+
+## [2.19.1](https://github.com/fredrikburmester/streamystats/compare/v2.19.0...v2.19.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* include Node.js atomic runtime library in AIO image ([#571](https://github.com/fredrikburmester/streamystats/issues/571)) ([de44bb3](https://github.com/fredrikburmester/streamystats/commit/de44bb3d137aef5873df88a6acc0ff79abd85db0))
+
+## [2.19.0](https://github.com/fredrikburmester/streamystats/compare/v2.18.1...v2.19.0) (2026-09-12)
+
+
+### Features
+
+* add Jellyfin 12 support ([#568](https://github.com/fredrikburmester/streamystats/issues/568)) ([4a56b84](https://github.com/fredrikburmester/streamystats/commit/4a56b84b4aa9c482bf704433975e262fdf128a12))
+* add UTC timestamps to job-server log lines ([#552](https://github.com/fredrikburmester/streamystats/issues/552)) ([50c35a3](https://github.com/fredrikburmester/streamystats/commit/50c35a3db996c4d8be0330f8158c7964ed93ed40))
+* **ai:** people and character search tool ([#530](https://github.com/fredrikburmester/streamystats/issues/530)) ([80e9b5c](https://github.com/fredrikburmester/streamystats/commit/80e9b5c6fb43c076a88848cac221ca11f1273234))
+* create SECURITY.md ([#531](https://github.com/fredrikburmester/streamystats/issues/531)) ([13bb4ec](https://github.com/fredrikburmester/streamystats/commit/13bb4ec7fbb40723e618d9fdceebf02877d4ac70))
+* **jellyfin:** add tag synchronization support ([#529](https://github.com/fredrikburmester/streamystats/issues/529)) ([60bf080](https://github.com/fredrikburmester/streamystats/commit/60bf08046598d90a0a3f44ff86e44c40a0df7fcf))
+
+
+### Bug Fixes
+
+* allow postgres to shut down cleanly in AIO container ([#551](https://github.com/fredrikburmester/streamystats/issues/551)) ([cf6d9a1](https://github.com/fredrikburmester/streamystats/commit/cf6d9a14d633621676e994959e9e3a2225081dc2))
+* keep excluded libraries visible in exclusions manager ([#557](https://github.com/fredrikburmester/streamystats/issues/557)) ([83951b2](https://github.com/fredrikburmester/streamystats/commit/83951b21495b5fa0db4a9a52696685e219971c0b))
+* prevent job-server spin loop and memory leak on database failure ([#570](https://github.com/fredrikburmester/streamystats/issues/570)) ([d193926](https://github.com/fredrikburmester/streamystats/commit/d19392614314229182d1336ac4d96392079a4421))
+* specify user and database in AIO postgres healthcheck ([#550](https://github.com/fredrikburmester/streamystats/issues/550)) ([9e1fecf](https://github.com/fredrikburmester/streamystats/commit/9e1fecf63af855c26bc64c44a36b9ca9c4cfde60))
+* use internal url for all server-to-server jellyfin communication ([#541](https://github.com/fredrikburmester/streamystats/issues/541)) ([4b12c03](https://github.com/fredrikburmester/streamystats/commit/4b12c0385e71472ee5c4168dda9eb10d2207676d))
+
+## [2.18.1](https://github.com/fredrikburmester/streamystats/compare/v2.18.0...v2.18.1) (2026-06-10)
+
+
+### Bug Fixes
+
+* prevent scheduler job loop by using unique schedule keys ([#458](https://github.com/fredrikburmester/streamystats/issues/458)) ([0747ea9](https://github.com/fredrikburmester/streamystats/commit/0747ea96c81bb8c2a12cce3229ea771b157d5356))
+* remove non-async exports from api-auth server action module ([#520](https://github.com/fredrikburmester/streamystats/issues/520)) ([5183492](https://github.com/fredrikburmester/streamystats/commit/5183492d260a59838f4d91efb68af22bae8d0f2f))
+* resolve full sync timeout and people sync crash ([#487](https://github.com/fredrikburmester/streamystats/issues/487)) ([1d2c1c7](https://github.com/fredrikburmester/streamystats/commit/1d2c1c74d0ab6e40b7afa2ee2585af5af1bf53b0))
+
 ## [2.18.0](https://github.com/fredrikburmester/streamystats/compare/v2.17.0...v2.18.0) (2026-03-15)
 
 

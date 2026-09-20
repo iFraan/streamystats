@@ -31,7 +31,7 @@ export const UserMenu: React.FC<Props> = ({ me, server }) => {
 
   const { id } = params as { id: string };
 
-  if (!me || !me?.name) return null;
+  if (!me?.name) return null;
 
   return (
     <DropdownMenu>

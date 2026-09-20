@@ -8,16 +8,10 @@ import {
   type Item,
   items,
 } from "@streamystats/database/schema";
-import {
-  and,
-  cosineDistance,
-  desc,
-  eq,
-  isNotNull,
-  isNull,
-  sql,
-} from "drizzle-orm";
-import { revalidateTag } from "next/cache";
+import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
+
+import { getItemEmbeddingComparison } from "./embedding-comparison";
 import type {
   RecommendationCardItem,
   RecommendationResult,
@@ -97,6 +91,13 @@ export const getSimilarSeriesForItem = async (
   itemId: string,
   limit = 10,
 ): Promise<SeriesRecommendationItem[]> => {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(
+    `series-recommendations-${serverId}`,
+    `series-recommendations-item-${itemId}`,
+  );
+
   try {
     const serverIdNum = Number(serverId);
 
@@ -110,14 +111,15 @@ export const getSimilarSeriesForItem = async (
       columns: itemCardWithEmbeddingColumns,
     });
 
-    if (!targetSeries || !targetSeries.embedding) {
+    if (!targetSeries?.embedding) {
       return [];
     }
 
-    const similarity = sql<number>`1 - (${cosineDistance(
-      items.embedding,
+    // Calculate cosine similarity with other series using indexed expression
+    const { distance, dimensionFilter } = getItemEmbeddingComparison(
       targetSeries.embedding,
-    )})`;
+    );
+    const similarity = sql<number>`1 - (${distance})`;
 
     const similarSeries = await db
       .select({
@@ -131,11 +133,12 @@ export const getSimilarSeriesForItem = async (
           isNull(items.deletedAt),
           eq(items.type, "Series"),
           isNotNull(items.embedding),
-          sql`${items.id} != ${itemId}`,
+          dimensionFilter,
+          sql`${items.id} != ${itemId}`, // Exclude the target series itself
         ),
       )
-      .orderBy(desc(similarity))
-      .limit(limit * 2);
+      .orderBy(asc(distance))
+      .limit(limit * 2); // Get more to filter for quality
 
     const qualifiedSimilarSeries = similarSeries.filter(
       (result) => Number(result.similarity) > 0.4,

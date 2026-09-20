@@ -50,6 +50,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { chatRehypePlugins } from "@/lib/ai/chat-markdown";
 import type { User } from "@/lib/types";
 import JellyfinAvatar from "./JellyfinAvatar";
 
@@ -57,6 +58,8 @@ interface ChatDialogProps {
   chatConfigured: boolean;
   me?: User;
   server?: { url: string; internalUrl?: string | null };
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface ChatItemData {
@@ -146,8 +149,17 @@ function ItemCard({ item, serverId, server }: ItemCardProps) {
   );
 }
 
-export function ChatDialog({ chatConfigured, me, server }: ChatDialogProps) {
-  const [open, setOpen] = useState(false);
+export function ChatDialog({
+  chatConfigured,
+  me,
+  server,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+}: ChatDialogProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = isControlled ? setControlledOpen! : setUncontrolledOpen;
   const params = useParams();
   const serverId = params.id as string;
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -315,6 +327,7 @@ export function ChatDialog({ chatConfigured, me, server }: ChatDialogProps) {
     (text: string): React.ReactNode => (
       <Streamdown
         components={markdownComponents}
+        rehypePlugins={chatRehypePlugins}
         className="size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
       >
         {text}
@@ -555,14 +568,16 @@ export function ChatDialog({ chatConfigured, me, server }: ChatDialogProps) {
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-9 w-9"
-        onClick={handleOpen}
-      >
-        <Sparkles className="h-4 w-4" />
-      </Button>
+      {!isControlled && (
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-9 w-9"
+          onClick={handleOpen}
+        >
+          <Sparkles className="h-4 w-4" />
+        </Button>
+      )}
 
       {isMobile ? (
         <Drawer open={open} onOpenChange={setOpen}>

@@ -32,7 +32,7 @@ async function getItemPlayedStatus(
 ): Promise<boolean> {
   try {
     const response = await fetch(
-      `${serverUrl}/Users/${userId}/Items/${itemId}`,
+      `${serverUrl}/Items/${itemId}?userId=${encodeURIComponent(userId)}`,
       {
         headers: jellyfinHeaders(token),
         signal: AbortSignal.timeout(5000),
