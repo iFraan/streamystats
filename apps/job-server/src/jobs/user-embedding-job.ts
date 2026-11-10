@@ -8,7 +8,10 @@ import {
 } from "@streamystats/database";
 import { and, eq, sql, isNotNull, gte } from "drizzle-orm";
 import type { PgBossJob } from "../types/job-status";
-import { normalizeVector, toPgVectorLiteral } from "@streamystats/database/vector";
+import {
+  normalizeVector,
+  toPgVectorLiteral,
+} from "@streamystats/database/vector";
 
 export const USER_EMBEDDING_JOB_NAME = "calculate-user-embeddings";
 
@@ -31,7 +34,7 @@ const SERIES_FULL_ENGAGEMENT_EPISODES = 5;
 const SERIES_BOUNCE_THRESHOLD = 0.15;
 
 /** Minimum average completion to avoid bounce penalty for movies. */
-const MOVIES_BOUNCE_THRESHOLD = 0.10;
+const MOVIES_BOUNCE_THRESHOLD = 0.1;
 
 /** Freshness multiplier is documented but applied at query-time, not here. */
 
@@ -52,11 +55,9 @@ async function ensureUserEmbeddingIndex(dimensions: number): Promise<void> {
   // pgvector HNSW upper bound
   if (dimensions > 2000) {
     console.info(
-      `[user-embeddings-index] dimensions=${dimensions} action=skip reason=exceedsMaxDimensions`
+      `[user-embeddings-index] dimensions=${dimensions} action=skip reason=exceedsMaxDimensions`,
     );
-    await db.execute(
-      sql`DROP INDEX IF EXISTS user_embeddings_embedding_idx`
-    );
+    await db.execute(sql`DROP INDEX IF EXISTS user_embeddings_embedding_idx`);
     userIndexEnsuredForDimension.add(dimensions);
     return;
   }
@@ -78,15 +79,13 @@ async function ensureUserEmbeddingIndex(dimensions: number): Promise<void> {
         return;
       }
       console.info(
-        `[user-embeddings-index] dimensions=${dimensions} action=dropExisting reason=dimensionMismatch`
+        `[user-embeddings-index] dimensions=${dimensions} action=dropExisting reason=dimensionMismatch`,
       );
-      await db.execute(
-        sql`DROP INDEX IF EXISTS user_embeddings_embedding_idx`
-      );
+      await db.execute(sql`DROP INDEX IF EXISTS user_embeddings_embedding_idx`);
     }
 
     console.info(
-      `[user-embeddings-index] dimensions=${dimensions} action=create method=hnsw`
+      `[user-embeddings-index] dimensions=${dimensions} action=create method=hnsw`,
     );
     await db.execute(sql`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS user_embeddings_embedding_idx
@@ -99,7 +98,6 @@ async function ensureUserEmbeddingIndex(dimensions: number): Promise<void> {
   }
 }
 
-
 interface WatchedItemForProfile {
   itemId: string;
   embedding: number[];
@@ -111,52 +109,73 @@ interface WatchedItemForProfile {
   episodeCount: number; // 1 for movies, actual count for series groups
 }
 
-async function computeUserProfile(
-  serverId: number,
-  userId: string,
-  now: number
-): Promise<{ embedding: number[]; itemCount: number } | null> {
+async function computeUserProfile({
+  serverId,
+  userId,
+  now,
+  database,
+}: {
+  serverId: number;
+  userId: string;
+  now: number;
+  database: Pick<typeof db, "select">;
+}): Promise<{ embedding: number[]; itemCount: number } | null> {
   // ── Fetch movie watch data ───────────────────────────────────────────────
-  const movieRows = await db
+  const movieRows = await database
     .select({
       itemId: sessions.itemId,
       embedding: items.embedding,
       type: items.type,
       seriesId: items.seriesId,
-      totalPlayDuration:
-        sql<number>`SUM(${sessions.playDuration})`.as("totalPlayDuration"),
+      totalPlayDuration: sql<number>`SUM(${sessions.playDuration})`.as(
+        "totalPlayDuration",
+      ),
       expectedRuntime: items.runtimeTicks,
-      lastWatched: sql<string>`MAX(${sessions.endTime})`.as("lastWatched"),
-    })
-    .from(sessions)
-    .innerJoin(items, and(eq(items.id, sessions.itemId), eq(items.type, "Movie")))
-    .where(
-      and(
-        eq(sessions.serverId, serverId),
-        eq(sessions.userId, userId),
-        isNotNull(items.embedding),
-        isNotNull(sessions.playDuration)
-      )
-    )
-    .groupBy(sessions.itemId, items.id);
-
-  // ── Fetch series watch data (episodes aggregated to series) ──────────────
-  const seriesRows = await db
-    .select({
-      seriesId: sessions.seriesId,
-      embedding: items.embedding,
-      episodeCount:
-        sql<number>`COUNT(DISTINCT ${sessions.itemId})`.as("episodeCount"),
-      totalPlayDuration:
-        sql<number>`SUM(${sessions.playDuration})`.as("totalPlayDuration"),
-      avgEpisodeRuntimeTicks:
-        sql<number>`AVG(${sessions.runtimeTicks})`.as("avgEpisodeRuntimeTicks"),
       lastWatched: sql<string>`MAX(${sessions.endTime})`.as("lastWatched"),
     })
     .from(sessions)
     .innerJoin(
       items,
-      and(eq(items.id, sessions.seriesId), eq(items.type, "Series"))
+      and(
+        eq(items.id, sessions.itemId),
+        eq(items.serverId, sessions.serverId),
+        eq(items.type, "Movie"),
+      ),
+    )
+    .where(
+      and(
+        eq(sessions.serverId, serverId),
+        eq(sessions.userId, userId),
+        isNotNull(items.embedding),
+        isNotNull(sessions.playDuration),
+      ),
+    )
+    .groupBy(sessions.itemId, items.serverId, items.id);
+
+  // ── Fetch series watch data (episodes aggregated to series) ──────────────
+  const seriesRows = await database
+    .select({
+      seriesId: sessions.seriesId,
+      embedding: items.embedding,
+      episodeCount: sql<number>`COUNT(DISTINCT ${sessions.itemId})`.as(
+        "episodeCount",
+      ),
+      totalPlayDuration: sql<number>`SUM(${sessions.playDuration})`.as(
+        "totalPlayDuration",
+      ),
+      avgEpisodeRuntimeTicks: sql<number>`AVG(${sessions.runtimeTicks})`.as(
+        "avgEpisodeRuntimeTicks",
+      ),
+      lastWatched: sql<string>`MAX(${sessions.endTime})`.as("lastWatched"),
+    })
+    .from(sessions)
+    .innerJoin(
+      items,
+      and(
+        eq(items.id, sessions.seriesId),
+        eq(items.serverId, sessions.serverId),
+        eq(items.type, "Series"),
+      ),
     )
     .where(
       and(
@@ -164,10 +183,10 @@ async function computeUserProfile(
         eq(sessions.userId, userId),
         isNotNull(sessions.seriesId),
         isNotNull(items.embedding),
-        isNotNull(sessions.playDuration)
-      )
+        isNotNull(sessions.playDuration),
+      ),
     )
-    .groupBy(sessions.seriesId, items.id);
+    .groupBy(sessions.seriesId, items.serverId, items.id);
 
   // ── Build unified list ───────────────────────────────────────────────────
   const watched: WatchedItemForProfile[] = [];
@@ -220,13 +239,12 @@ async function computeUserProfile(
   for (const item of watched) {
     if (item.embedding.length !== dims) {
       console.warn(
-        `[user-embeddings] userId=${userId} itemId=${item.itemId} action=skipDimensionMismatch expected=${dims} got=${item.embedding.length}`
+        `[user-embeddings] userId=${userId} itemId=${item.itemId} action=skipDimensionMismatch expected=${dims} got=${item.embedding.length}`,
       );
       continue;
     }
 
-    const daysSinceWatched =
-      (now - item.lastWatchedMs) / (1000 * 60 * 60 * 24);
+    const daysSinceWatched = (now - item.lastWatchedMs) / (1000 * 60 * 60 * 24);
     const recencyDecay = Math.exp(-RECENCY_LAMBDA * daysSinceWatched);
 
     let weight: number;
@@ -246,7 +264,7 @@ async function computeUserProfile(
       // Series: combine episode count engagement with completion ratio
       const engagement = Math.min(
         item.episodeCount / SERIES_FULL_ENGAGEMENT_EPISODES,
-        1.0
+        1.0,
       );
 
       const expectedRuntimeSeconds = item.expectedRuntime / 10_000_000;
@@ -283,7 +301,7 @@ async function computeUserProfile(
 }
 
 export async function calculateUserEmbeddingsJob(
-  job: PgBossJob<CalculateUserEmbeddingsJobData>
+  job: PgBossJob<CalculateUserEmbeddingsJobData>,
 ) {
   const { serverId } = job.data;
   const startTime = Date.now();
@@ -307,28 +325,25 @@ export async function calculateUserEmbeddingsJob(
 
     // ── Get active users ─────────────────────────────────────────────────
     const cutoff = new Date(
-      Date.now() - ACTIVE_DAYS_THRESHOLD * 24 * 60 * 60 * 1000
+      Date.now() - ACTIVE_DAYS_THRESHOLD * 24 * 60 * 60 * 1000,
     );
 
     const activeUsers = await db
       .select({ id: users.id })
       .from(users)
       .where(
-        and(
-          eq(users.serverId, serverId),
-          gte(users.lastActivityDate, cutoff)
-        )
+        and(eq(users.serverId, serverId), gte(users.lastActivityDate, cutoff)),
       );
 
     if (activeUsers.length === 0) {
       console.log(
-        `[user-embeddings] action=complete serverId=${serverId} users=0`
+        `[user-embeddings] action=complete serverId=${serverId} users=0`,
       );
       return { usersProcessed: 0, usersSkipped: 0 };
     }
 
     console.log(
-      `[user-embeddings] serverId=${serverId} activeUsers=${activeUsers.length}`
+      `[user-embeddings] serverId=${serverId} activeUsers=${activeUsers.length}`,
     );
 
     let processed = 0;
@@ -336,48 +351,57 @@ export async function calculateUserEmbeddingsJob(
     const now = Date.now();
 
     for (const user of activeUsers) {
-      const result = await computeUserProfile(serverId, user.id, now);
-
-      if (!result) {
-        skipped++;
-        continue;
-      }
-
-      // Upsert
-      const upsertNow = new Date();
-      await db
-        .insert(userEmbeddings)
-        .values({
-          userId: user.id,
+      const calculated = await db.transaction(async (transaction) => {
+        await transaction.execute(
+          sql`SELECT pg_advisory_xact_lock_shared(582, ${serverId})`,
+        );
+        const [account] = await transaction
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.id, user.id), eq(users.serverId, serverId)))
+          .limit(1);
+        if (!account) return false;
+        const result = await computeUserProfile({
           serverId,
-          embedding: sql`${toPgVectorLiteral(result.embedding)}::vector`,
-          itemCount: result.itemCount,
-          lastCalculatedAt: upsertNow,
-        })
-        .onConflictDoUpdate({
-          target: [userEmbeddings.userId, userEmbeddings.serverId],
-          set: {
+          userId: user.id,
+          now,
+          database: transaction,
+        });
+        if (!result) return false;
+        const upsertNow = new Date();
+        await transaction
+          .insert(userEmbeddings)
+          .values({
+            userId: user.id,
+            serverId,
             embedding: sql`${toPgVectorLiteral(result.embedding)}::vector`,
             itemCount: result.itemCount,
             lastCalculatedAt: upsertNow,
-            updatedAt: upsertNow,
-          },
-        });
+          })
+          .onConflictDoUpdate({
+            target: [userEmbeddings.userId, userEmbeddings.serverId],
+            set: {
+              embedding: sql`${toPgVectorLiteral(result.embedding)}::vector`,
+              itemCount: result.itemCount,
+              lastCalculatedAt: upsertNow,
+              updatedAt: upsertNow,
+            },
+          });
 
-      processed++;
+        return true;
+      });
+      if (calculated) processed++;
+      else skipped++;
     }
 
     const duration = Date.now() - startTime;
     console.log(
-      `[user-embeddings] action=complete serverId=${serverId} processed=${processed} skipped=${skipped} durationMs=${duration}`
+      `[user-embeddings] action=complete serverId=${serverId} processed=${processed} skipped=${skipped} durationMs=${duration}`,
     );
 
     return { usersProcessed: processed, usersSkipped: skipped };
   } catch (error) {
-    console.error(
-      `[user-embeddings] action=error serverId=${serverId}`,
-      error
-    );
+    console.error(`[user-embeddings] action=error serverId=${serverId}`, error);
     throw error;
   }
 }

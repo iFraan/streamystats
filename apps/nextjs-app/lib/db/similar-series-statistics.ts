@@ -92,6 +92,7 @@ export const getSimilarSeriesForItem = async (
   limit = 10,
 ): Promise<SeriesRecommendationItem[]> => {
   "use cache";
+  cacheTag("user-analytics");
   cacheLife("hours");
   cacheTag(
     `series-recommendations-${serverId}`,

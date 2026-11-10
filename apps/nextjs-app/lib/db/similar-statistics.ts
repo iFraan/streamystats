@@ -140,6 +140,7 @@ export const getSimilarItemsForItem = async (
   limit = 10,
 ): Promise<RecommendationItem[]> => {
   "use cache";
+  cacheTag("user-analytics");
   cacheLife("hours");
   cacheTag(`recommendations-${serverId}`, `recommendations-item-${itemId}`);
 

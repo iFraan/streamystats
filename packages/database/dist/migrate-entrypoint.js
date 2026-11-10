@@ -3,14 +3,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const env_1 = require("./env");
 const migrate_1 = require("./migrate");
 const postgres_1 = __importDefault(require("postgres"));
 async function main() {
     console.log("=== Database Migration Runner ===");
     console.log(`Starting at: ${new Date().toISOString()}`);
-    const dbUrl = process.env.DATABASE_URL;
+    const dbUrl = (0, env_1.resolveDatabaseUrl)();
     if (!dbUrl) {
-        console.error("DATABASE_URL environment variable is missing");
+        console.error(env_1.MISSING_DATABASE_URL_MESSAGE);
         process.exit(1);
     }
     // 1. Wait for database
