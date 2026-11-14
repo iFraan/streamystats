@@ -21,6 +21,7 @@ export {
 export * from "./schema";
 export * from "./user-merge";
 export * from "./user-merge-backup";
+export * from "./taste-profile";
 
 // Export job defaults
 export * from "./job-defaults";

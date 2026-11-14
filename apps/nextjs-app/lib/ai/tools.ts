@@ -410,7 +410,7 @@ export function createChatTools(
                 .join(", ")})`;
             }
           } else {
-            reason = "Popular on this server";
+            reason = "Matches your taste profile";
           }
 
           return {

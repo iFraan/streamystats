@@ -129,8 +129,9 @@ function getRecommendationReason(args: {
   };
 }): string {
   const { recommendation } = args;
+  // Taste-profile recommendations come from all of the history, not single items.
   if (!recommendation.basedOn || recommendation.basedOn.length === 0) {
-    return "Popular on this server";
+    return "Matches your taste profile";
   }
 
   const baseNames = recommendation.basedOn.slice(0, 3).map((b) => b.name);
@@ -269,7 +270,7 @@ async function buildRecommendationsResponse(args: {
   params: Omit<ResolvedParams, "serverId" | "serverName">;
   timeWindow: { start?: Date; end?: Date };
 }) {
-  const { server, user, viewerUserId, params } = args;
+  const { server, user, viewerUserId, params, timeWindow } = args;
 
   const fetchLimit = Math.min(200, Math.max(params.limit * 4, params.limit));
 
@@ -284,6 +285,7 @@ async function buildRecommendationsResponse(args: {
       limit: fetchLimit,
       type: "Movie",
       viewerUserId,
+      timeWindow,
     });
   }
 
@@ -294,6 +296,7 @@ async function buildRecommendationsResponse(args: {
       limit: fetchLimit,
       type: "Series",
       viewerUserId,
+      timeWindow,
     });
   }
 

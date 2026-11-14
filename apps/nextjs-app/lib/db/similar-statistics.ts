@@ -2,7 +2,7 @@
 
 import "server-only";
 
-import { db } from "@streamystats/database";
+import { db, type TasteProfileWindow } from "@streamystats/database";
 import {
   hiddenRecommendations,
   type Item,
@@ -86,6 +86,7 @@ export async function getSimilarStatistics({
   offset = 0,
   type = "all",
   viewerUserId,
+  timeWindow,
 }: {
   serverId: string | number;
   userId?: string;
@@ -93,6 +94,7 @@ export async function getSimilarStatistics({
   offset?: number;
   type?: "Movie" | "Series" | "all";
   viewerUserId?: string | null;
+  timeWindow?: TasteProfileWindow;
 }): Promise<RecommendationItem[]> {
   const serverIdNum = Number(serverId);
 
@@ -114,6 +116,7 @@ export async function getSimilarStatistics({
       limit,
       offset,
       viewerUserId,
+      timeWindow,
     });
   } catch (error) {
     console.error("Error getting movie recommendations:", error);

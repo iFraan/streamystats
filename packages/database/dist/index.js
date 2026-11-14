@@ -36,6 +36,7 @@ Object.defineProperty(exports, "resolveDatabaseUrl", { enumerable: true, get: fu
 __exportStar(require("./schema"), exports);
 __exportStar(require("./user-merge"), exports);
 __exportStar(require("./user-merge-backup"), exports);
+__exportStar(require("./taste-profile"), exports);
 // Export job defaults
 __exportStar(require("./job-defaults"), exports);
 // Export migration utilities
