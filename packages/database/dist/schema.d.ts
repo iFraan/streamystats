@@ -6608,6 +6608,64 @@ export declare const userEmbeddings: import("drizzle-orm/pg-core").PgTableWithCo
     };
     dialect: "pg";
 }>;
+export declare const itemLibraries: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "item_libraries";
+    schema: undefined;
+    columns: {
+        serverId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "server_id";
+            tableName: "item_libraries";
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        itemId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "item_id";
+            tableName: "item_libraries";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        libraryId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "library_id";
+            tableName: "item_libraries";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
 export declare const serversRelations: import("drizzle-orm").Relations<"servers", {
     libraries: import("drizzle-orm").Many<"libraries">;
     users: import("drizzle-orm").Many<"users">;

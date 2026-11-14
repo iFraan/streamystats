@@ -337,6 +337,13 @@
       "when": 1794324245505,
       "tag": "0047_sync_upstream_2_22",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794324661230,
+      "tag": "0048_item_libraries",
+      "breakpoints": true
     }
   ]
 }

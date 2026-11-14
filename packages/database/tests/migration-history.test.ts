@@ -8,6 +8,7 @@ const migrationsFolder = fileURLToPath(new URL("../drizzle", import.meta.url));
 const journal = readJournal();
 const migrations = readMigrationFiles({ migrationsFolder });
 const reconciliationTag = "0047_sync_upstream_2_22";
+const itemLibrariesTag = "0048_item_libraries";
 const reconciliation = readFileSync(
   join(migrationsFolder, `${reconciliationTag}.sql`),
   "utf8",
@@ -81,6 +82,34 @@ describe("fork migration history", () => {
     ).toBeDefined();
   });
 
+  test.each([
+    { name: "main-rc", watermark: 1780183104197 },
+    { name: "2.20 integration", watermark: 1789868066521 },
+    { name: "2.22.1 integration", watermark: 1794324245505 },
+  ])("runs upstream item libraries after an applied $name database", ({
+    watermark,
+  }) => {
+    const pending = journal.entries
+      .filter((entry) => entry.when > watermark)
+      .map((entry) => entry.tag);
+    expect(pending.at(-1)).toBe(itemLibrariesTag);
+  });
+
+  test("keeps the upstream item library backfill", () => {
+    const index = journal.entries.findIndex(
+      (entry) => entry.tag === itemLibrariesTag,
+    );
+    expect(journal.entries[index - 1]?.tag).toBe(reconciliationTag);
+    const content = readFileSync(
+      join(migrationsFolder, `${itemLibrariesTag}.sql`),
+      "utf8",
+    );
+    expect(content).toContain('CREATE TABLE "item_libraries"');
+    expect(content).toContain(
+      'INSERT INTO "item_libraries" ("server_id", "item_id", "library_id")',
+    );
+  });
+
   test("carries upstream index repair, media recovery and account triggers in order", () => {
     const expected = [
       "0044_performance_indexes.sql",
@@ -131,5 +160,6 @@ describe("fork migration history", () => {
     expect(latest?.tables["public.user_embeddings"]).toBeDefined();
     expect(latest?.tables["public.user_merges"]).toBeDefined();
     expect(latest?.tables["public.user_merge_audit"]).toBeDefined();
+    expect(latest?.tables["public.item_libraries"]).toBeDefined();
   });
 });

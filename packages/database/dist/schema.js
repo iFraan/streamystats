@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.itemPeopleRelations = exports.peopleRelations = exports.watchlistItemsRelations = exports.watchlistsRelations = exports.userEmbeddingsRelations = exports.hiddenRecommendationsRelations = exports.anomalyEventsRelations = exports.userFingerprintsRelations = exports.activityLocationsRelations = exports.sessionsRelations = exports.itemsRelations = exports.activitiesRelations = exports.usersRelations = exports.librariesRelations = exports.serverJobConfigurationsRelations = exports.serversRelations = exports.userEmbeddings = exports.watchlistItems = exports.watchlists = exports.itemPeople = exports.people = exports.anomalyEvents = exports.userFingerprints = exports.activityLocations = exports.hiddenRecommendations = exports.activityLogCursors = exports.activeSessions = exports.sessions = exports.mediaSources = exports.items = exports.serverJobConfigurations = exports.jobResults = exports.activities = exports.userMergeAudit = exports.userMerges = exports.users = exports.libraries = exports.servers = void 0;
+exports.itemPeopleRelations = exports.peopleRelations = exports.watchlistItemsRelations = exports.watchlistsRelations = exports.userEmbeddingsRelations = exports.hiddenRecommendationsRelations = exports.anomalyEventsRelations = exports.userFingerprintsRelations = exports.activityLocationsRelations = exports.sessionsRelations = exports.itemsRelations = exports.activitiesRelations = exports.usersRelations = exports.librariesRelations = exports.serverJobConfigurationsRelations = exports.serversRelations = exports.itemLibraries = exports.userEmbeddings = exports.watchlistItems = exports.watchlists = exports.itemPeople = exports.people = exports.anomalyEvents = exports.userFingerprints = exports.activityLocations = exports.hiddenRecommendations = exports.activityLogCursors = exports.activeSessions = exports.sessions = exports.mediaSources = exports.items = exports.serverJobConfigurations = exports.jobResults = exports.activities = exports.userMergeAudit = exports.userMerges = exports.users = exports.libraries = exports.servers = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 // Custom vector type that supports variable dimensions
 // This allows storing embeddings of any size without hardcoding dimensions
@@ -742,6 +742,27 @@ exports.userEmbeddings = (0, pg_core_1.pgTable)("user_embeddings", {
 }, (table) => [
     (0, pg_core_1.unique)("user_embeddings_user_server_unique").on(table.userId, table.serverId),
     (0, pg_core_1.index)("user_embeddings_server_id_idx").on(table.serverId),
+]);
+// Item libraries junction table - every library the sync has seen an item in.
+// Jellyfin lists an item under one ID in each library that has its folder,
+// while items.library_id only has room for one of them.
+exports.itemLibraries = (0, pg_core_1.pgTable)("item_libraries", {
+    serverId: (0, pg_core_1.integer)("server_id").notNull(),
+    itemId: (0, pg_core_1.text)("item_id").notNull(),
+    libraryId: (0, pg_core_1.text)("library_id").notNull(),
+}, (table) => [
+    (0, pg_core_1.primaryKey)({ columns: [table.serverId, table.itemId, table.libraryId] }),
+    (0, pg_core_1.foreignKey)({
+        name: "item_libraries_items_server_fk",
+        columns: [table.serverId, table.itemId],
+        foreignColumns: [exports.items.serverId, exports.items.id],
+    }).onDelete("cascade"),
+    (0, pg_core_1.foreignKey)({
+        name: "item_libraries_libraries_server_fk",
+        columns: [table.serverId, table.libraryId],
+        foreignColumns: [exports.libraries.serverId, exports.libraries.id],
+    }).onDelete("cascade"),
+    (0, pg_core_1.index)("item_libraries_library_idx").on(table.serverId, table.libraryId),
 ]);
 // Define relationships
 exports.serversRelations = (0, drizzle_orm_1.relations)(exports.servers, ({ many }) => ({

@@ -107,15 +107,24 @@ export const getItemDetails = async ({
 
   // Check library access for restricted users (respects both server and user exclusions)
   if (viewerUserId && item.libraryId) {
-    const { allowedLibraryIds } = await getStatisticsExclusions(
-      item.serverId,
-      viewerUserId,
-    );
-    if (
-      allowedLibraryIds !== null &&
-      !allowedLibraryIds.includes(item.libraryId)
-    ) {
-      return null;
+    const { allowedLibraryIds, itemLibraryExclusion } =
+      await getStatisticsExclusions(item.serverId, viewerUserId);
+    if (allowedLibraryIds !== null) {
+      // The item may also be in a library other than the one it is stored under
+      const [accessibleItem] = await db
+        .select({ id: items.id })
+        .from(items)
+        .where(
+          and(
+            eq(items.serverId, serverId),
+            eq(items.id, itemId),
+            itemLibraryExclusion,
+          ),
+        )
+        .limit(1);
+      if (!accessibleItem) {
+        return null;
+      }
     }
   }
 
@@ -816,22 +825,28 @@ export interface SeasonEpisode {
 export const getSeasonsAndEpisodes = async ({
   serverId,
   seriesId,
+  includeDeleted = false,
 }: {
   serverId: number;
   seriesId: string;
+  includeDeleted?: boolean;
 }): Promise<SeasonEpisode[]> => {
+  const conditions: SQL[] = [
+    eq(items.serverId, serverId),
+    eq(items.type, "Episode"),
+    eq(items.seriesId, seriesId),
+    isNotNull(items.parentIndexNumber),
+    isNotNull(items.indexNumber),
+  ];
+  // Replacing an episode's file in Jellyfin gives it a new item id and
+  // soft-deletes the old one, which would otherwise sit next to its
+  // replacement in the season.
+  if (!includeDeleted) conditions.push(isNull(items.deletedAt));
+
   const allEpisodes = await db
     .select()
     .from(items)
-    .where(
-      and(
-        eq(items.serverId, serverId),
-        eq(items.type, "Episode"),
-        eq(items.seriesId, seriesId),
-        isNotNull(items.parentIndexNumber),
-        isNotNull(items.indexNumber),
-      ),
-    )
+    .where(and(...conditions))
     .orderBy(asc(items.parentIndexNumber), asc(items.indexNumber));
 
   const seasonMap = new Map<number, Item[]>();
