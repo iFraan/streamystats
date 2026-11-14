@@ -31,13 +31,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import type { ServerPublic } from "@/lib/types";
 import {
   type ChatProvider,
-  clearChatConfig,
-  saveChatConfig,
-  testChatConnection,
-} from "@/lib/db/server";
-import type { ServerPublic } from "@/lib/types";
+  clearChatConfigAction,
+  saveChatConfigAction,
+  testChatConnectionAction,
+} from "./actions";
 
 const PROVIDER_PRESETS = {
   openai: {
@@ -53,6 +53,13 @@ const PROVIDER_PRESETS = {
     defaultModel: "claude-3-5-sonnet-latest",
     requiresApiKey: true,
     provider: "anthropic" as ChatProvider,
+  },
+  gemini: {
+    name: "Google Gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    defaultModel: "gemini-3.8-flash-high",
+    requiresApiKey: true,
+    provider: "gemini" as ChatProvider,
   },
   "together-ai": {
     name: "Together AI",
@@ -108,11 +115,15 @@ const PROVIDER_PRESETS = {
 type PresetKey = keyof typeof PROVIDER_PRESETS;
 
 function detectPreset(server: ServerPublic): PresetKey {
+  // Non openai-compatible providers must be detected first, regardless of url
   if (server.chatProvider === "anthropic") {
     return "anthropic";
   }
   if (server.chatProvider === "ollama") {
     return "ollama";
+  }
+  if (server.chatProvider === "gemini") {
+    return "gemini";
   }
 
   const baseUrl = server.chatBaseUrl || "";
@@ -162,14 +173,11 @@ export function ChatAIManager({ server }: { server: ServerPublic }) {
   const handleSaveConfig = async () => {
     setIsSaving(true);
     try {
-      await saveChatConfig({
-        serverId: server.id,
-        config: {
-          provider,
-          baseUrl,
-          apiKey: apiKey || undefined,
-          model,
-        },
+      await saveChatConfigAction(server.id, {
+        provider,
+        baseUrl,
+        apiKey: apiKey || undefined,
+        model,
       });
       toast.success("AI Chat configuration saved");
     } catch (_error) {
@@ -182,13 +190,11 @@ export function ChatAIManager({ server }: { server: ServerPublic }) {
   const handleTestConnection = async () => {
     setIsTesting(true);
     try {
-      const result = await testChatConnection({
-        config: {
-          provider,
-          baseUrl,
-          apiKey: apiKey || undefined,
-          model,
-        },
+      const result = await testChatConnectionAction(server.id, {
+        provider,
+        baseUrl,
+        apiKey: apiKey || undefined,
+        model,
       });
       if (result.success) {
         toast.success(result.message);
@@ -215,7 +221,7 @@ export function ChatAIManager({ server }: { server: ServerPublic }) {
   const handleClearConfig = async () => {
     setIsClearing(true);
     try {
-      await clearChatConfig({ serverId: server.id });
+      await clearChatConfigAction(server.id);
       toast.success("AI Chat configuration cleared");
       setBaseUrl(PROVIDER_PRESETS.openai.baseUrl);
       setApiKey("");
@@ -256,6 +262,7 @@ export function ChatAIManager({ server }: { server: ServerPublic }) {
                 <SelectContent>
                   <SelectItem value="openai">OpenAI</SelectItem>
                   <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                  <SelectItem value="gemini">Google Gemini</SelectItem>
                   <SelectItem value="together-ai">Together AI</SelectItem>
                   <SelectItem value="fireworks">Fireworks AI</SelectItem>
                   <SelectItem value="groq">Groq</SelectItem>

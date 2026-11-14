@@ -112,7 +112,7 @@ packages/
 
 **Dev** (`docker-compose.dev.yml`): PostgreSQL only on `localhost:5432`. Run `bun run dev` locally.
 
-**Required env vars**: `SESSION_SECRET` (JWT signing), `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, `DATABASE_URL`, `JOB_SERVER_URL`. DB credentials default to `postgres`/`postgres`/`streamystats` in Docker.
+**Required env vars**: `SESSION_SECRET` (JWT signing), `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, `JOB_SERVER_URL`, and either `DATABASE_URL` or `POSTGRES_PASSWORD` (with optional `POSTGRES_USER`/`POSTGRES_HOST`/`POSTGRES_PORT`/`POSTGRES_DB`, see `packages/database/src/env.ts`). Secrets also accept a `*_FILE` variant, resolved once at startup by `@streamystats/database/load-env`. DB credentials default to `postgres`/`postgres`/`streamystats` in Docker.
 
 ## Data Sync & Jobs
 
@@ -146,7 +146,7 @@ Sync status tracked on `servers` table: `syncStatus` (pending/syncing/completed/
 
 **Analytics tables**: `activities` (server events), `activityLocations` (geolocated IPs), `userFingerprints` (behavioral patterns), `anomalyEvents` (suspicious activity flags with severity/resolution).
 
-**Feature tables**: `watchlists` + `watchlistItems` (user-created media lists), `hiddenRecommendations`, `people` + `itemPeople` (cast/crew relationships).
+**Feature tables**: `watchlists` + `watchlistItems` (user-created media lists), `hiddenRecommendations`, `people` + `itemPeople` (cast/crew relationships), `itemLibraries` (every library an item is in, kept by the item sync; `items.libraryId` holds only one of them).
 
 **System tables**: `jobResults` (execution log), `serverJobConfigurations` (per-server cron overrides), `activeSessions` (durable snapshot of current playback), `activityLogCursors` (pagination state).
 
@@ -156,7 +156,7 @@ Sync status tracked on `servers` table: `syncStatus` (pending/syncing/completed/
 
 **Session cookie** (`streamystats-session`): httpOnly, sameSite=lax, 30-day maxAge. JWT signed with `SESSION_SECRET` containing `id`, `name`, `serverId`, `isAdmin`. Separate `streamystats-token` cookie stores Jellyfin access token. Functions in `lib/session.ts`: `createSession()`, `getSession()`, `destroySession()`, `updateSession()`.
 
-**MediaBrowser token** (external API clients): `Authorization: MediaBrowser Token="<jellyfin-access-token>"`. Validated by calling Jellyfin `/Users/Me`.
+**MediaBrowser token** (external API clients): `Authorization: MediaBrowser Token="<jellyfin-access-token>"`. Validated by calling Jellyfin `/Users/Me`. A Jellyfin server API key works too, as the admin `system-api-key` identity, but only when `/Auth/Keys` lists it (`isServerApiKey()`); a 200 from `/System/Info` proves nothing, since any signed-in user gets one.
 
 **Auth guards**: `requireSession()` (web app, 401), `requireAuth(request)` (session OR MediaBrowser), `requireAdmin()` (session + admin, 403), `requireApiKey()` (validates against Jellyfin `/System/Info`).
 
@@ -202,6 +202,8 @@ if (requiresItemsJoin || otherCondition) {
 
 Additional helpers in `lib/db/exclusions.ts`: `buildUserExclusionCondition(ids)`, `buildLibraryExclusionCondition(ids)`, `getExcludedItemIds(serverId, ids)`, `addExclusionConditions(conditions, settings)`. For library-table queries use `librariesTableExclusion`, for user-table queries use `usersTableExclusion` — both returned by `getStatisticsExclusions()`.
 
+An item can be in several libraries, so `itemLibraryExclusion` keeps it when any of its libraries passes, reading the others from `itemLibraries`. Use it instead of comparing `items.libraryId` yourself, and only in queries on the unaliased `items` table, which it refers to by name.
+
 ### Internal vs External URLs
 
 Servers have two URL fields: `url` (external, required) and `internalUrl` (optional). Use helpers from `lib/server-url.ts` (nextjs-app) or `src/utils/server-url.ts` (job-server):
@@ -209,7 +211,7 @@ Servers have two URL fields: `url` (external, required) and `internalUrl` (optio
 - **Server-to-server requests** (API routes, server actions, job-server jobs): use `getInternalUrl(server)` — returns `internalUrl` with fallback to `url`
 - **Client-side browser links** (opening Jellyfin web UI, client components): use `server.url` directly
 - **Images in server components**: use `getInternalUrl(server)` since Next.js fetches server-side
-- **Images in client components**: route through `/api/image-proxy/[itemId]` so the proxy fetches internally and serves to the browser
+- **Images in client components**: build the Jellyfin image URL directly from `server.url` (e.g. via `getJellyfinImageUrl()` in `lib/utils.ts`) so the browser fetches it
 
 Never use raw `server.url` for server-to-server Jellyfin API calls — always use `getInternalUrl()`.
 

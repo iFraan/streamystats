@@ -1,6 +1,10 @@
 "use server";
 
-import { db } from "@streamystats/database";
+import {
+  computeTasteProfile,
+  db,
+  type TasteProfileWindow,
+} from "@streamystats/database";
 import {
   hiddenRecommendations,
   items,
@@ -83,11 +87,33 @@ const MIN_SIMILARITY = 0.05;
  */
 const MAX_EXCLUSION_LIST_SIZE = 5000;
 
+async function getStoredProfileVector({
+  serverId,
+  userId,
+}: {
+  serverId: number;
+  userId: string;
+}): Promise<number[] | null> {
+  const [profile] = await db
+    .select({ embedding: userEmbeddings.embedding })
+    .from(userEmbeddings)
+    .where(
+      and(
+        eq(userEmbeddings.userId, userId),
+        eq(userEmbeddings.serverId, serverId),
+      ),
+    )
+    .limit(1);
+  return profile?.embedding ?? null;
+}
+
 /**
- * Get recommendations using the pre-computed user taste profile.
+ * Get recommendations from the user's taste profile with a single
+ * HNSW-indexed vector search.
  *
- * This replaces the old N+1 per-movie cosine queries with a single
- * HNSW-indexed vector search using the unified user embedding.
+ * Without a time window this uses the pre-computed profile. With one, the
+ * profile is built from the sessions that started inside the window, so a
+ * single watched item is enough to recommend something.
  *
  * @param targetType - "Movie" or "Series" — filters which items to recommend
  */
@@ -98,6 +124,7 @@ export async function getProfileRecommendations({
   limit,
   offset = 0,
   viewerUserId,
+  timeWindow,
 }: {
   serverId: number;
   userId: string;
@@ -105,25 +132,27 @@ export async function getProfileRecommendations({
   limit: number;
   offset?: number;
   viewerUserId?: string | null;
+  timeWindow?: TasteProfileWindow;
 }): Promise<RecommendationResult[]> {
-  // ── 1. Fetch pre-computed user profile ───────────────────────────────────
-  const userProfile = await db
-    .select({ embedding: userEmbeddings.embedding })
-    .from(userEmbeddings)
-    .where(
-      and(
-        eq(userEmbeddings.userId, userId),
-        eq(userEmbeddings.serverId, serverId),
-      ),
-    )
-    .limit(1);
+  // ── 1. Resolve the user profile ──────────────────────────────────────────
+  const profileVector =
+    timeWindow?.start || timeWindow?.end
+      ? ((
+          await computeTasteProfile({
+            database: db,
+            serverId,
+            userId,
+            now: Date.now(),
+            window: timeWindow,
+            minItems: 1,
+          })
+        )?.embedding ?? null)
+      : await getStoredProfileVector({ serverId, userId });
 
-  if (userProfile.length === 0 || !userProfile[0].embedding) {
-    // No profile yet — return empty. The old logic can be used as fallback by callers.
+  // No profile yet: the user-embeddings job has not run or there is no history.
+  if (!profileVector) {
     return [];
   }
-
-  const profileVector = userProfile[0].embedding;
   const { itemLibraryExclusion } = await getStatisticsExclusions(
     serverId,
     viewerUserId === undefined ? userId : (viewerUserId ?? undefined),

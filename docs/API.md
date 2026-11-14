@@ -34,10 +34,13 @@ Authorization: MediaBrowser Client="MyApp", Device="iPhone", DeviceId="abc123", 
 
 ### Obtaining a Token
 
-Authenticate with Jellyfin's `/Users/AuthenticateByName` endpoint:
+Authenticate with Jellyfin's `/Users/AuthenticateByName` endpoint. Jellyfin
+requires the client to identify itself in the `Authorization` header (no
+token yet) and answers HTTP 400 without it:
 
 ```bash
 curl -X POST "https://your-jellyfin-server/Users/AuthenticateByName" \
+  -H 'Authorization: MediaBrowser Client="MyApp", Device="My Device", DeviceId="my-device-id", Version="1.0.0"' \
   -H "Content-Type: application/json" \
   -d '{"Username": "your-username", "Pw": "your-password"}'
 ```
@@ -277,7 +280,7 @@ curl "https://streamystats.example.com/api/search?q=star%20wars&format=ids&limit
 
 ### GET /api/recommendations
 
-Get personalized recommendations for the authenticated user.
+Get personalized recommendations for the authenticated user. Results come from the user's taste profile, a weighted average of the embeddings of everything they watched, so they need item embeddings and the User Embeddings Sync job.
 
 #### Query Parameters
 
@@ -286,9 +289,11 @@ Get personalized recommendations for the authenticated user.
 | `serverId` | | **Yes** | - | Server identifier (see [Server Identification](#server-identification)) |
 | `limit` | integer | No | 20 | Max results (1-100) |
 | `type` | string | No | `all` | Filter: `Movie`, `Series`, or `all` |
-| `range` | string | No | `all` | Time range: `7d`, `30d`, `90d`, `thisMonth`, `all` |
+| `range` | string | No | `all` | Watch history to build the profile from: `7d`, `30d`, `90d`, `thisMonth`, `all`. `all` uses the pre-computed profile; the others build one from the sessions that started in the range |
+| `start` | string | No | - | ISO timestamp; with `end`, a custom range instead of `range` |
+| `end` | string | No | - | ISO timestamp; with `start`, a custom range instead of `range` |
 | `format` | string | No | `full` | Response format: `full` or `ids` |
-| `includeBasedOn` | boolean | No | true | Include source items |
+| `includeBasedOn` | boolean | No | true | Include source items (always empty for taste-profile recommendations) |
 | `includeReasons` | boolean | No | true | Include recommendation reasons |
 | `targetUserId` | string | No | - | Admin only: get recommendations for another user |
 
@@ -303,8 +308,8 @@ Get personalized recommendations for the authenticated user.
     {
       "item": { "id": "jellyfin-id", "name": "Movie Name", "type": "Movie" },
       "similarity": 0.85,
-      "basedOn": [{ "id": "...", "name": "Similar Movie" }],
-      "reason": "Because you watched \"Similar Movie\" (shared: Action, Sci-Fi)"
+      "basedOn": [],
+      "reason": "Matches your taste profile"
     }
   ]
 }

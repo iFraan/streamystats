@@ -257,8 +257,7 @@ export function RecommendationsSection({
                                   <p className="text-muted-foreground text-xs mt-0.5 flex items-center gap-1.5">
                                     {item.productionYear}
                                     {item.runtimeTicks &&
-                                      formatRuntime &&
-                                      formatRuntime(
+                                      formatRuntime?.(
                                         Number(item.runtimeTicks),
                                       ) && (
                                         <>

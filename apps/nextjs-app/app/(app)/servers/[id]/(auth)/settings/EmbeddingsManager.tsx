@@ -34,18 +34,18 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import type { ServerPublic } from "@/lib/types";
 import {
-  clearEmbeddings,
+  clearEmbeddingsAction,
   type EmbeddingProgress,
   type EmbeddingProvider,
-  getEmbeddingProgress,
-  saveEmbeddingConfig,
-  startEmbedding,
-  stopEmbedding,
-  toggleAutoEmbeddings,
-  triggerUserEmbeddingsSync,
-} from "@/lib/db/server";
-import type { ServerPublic } from "@/lib/types";
+  getEmbeddingProgressAction,
+  saveEmbeddingConfigAction,
+  startEmbeddingAction,
+  stopEmbeddingAction,
+  toggleAutoEmbeddingsAction,
+  triggerUserEmbeddingsSyncAction,
+} from "./embedding-actions";
 
 // Presets for common embedding providers
 const PROVIDER_PRESETS = {
@@ -192,7 +192,7 @@ export function EmbeddingsManager({ server }: { server: ServerPublic }) {
     refetch,
   } = useQuery<EmbeddingProgress>({
     queryKey: ["embedding-progress", server.id],
-    queryFn: async () => await getEmbeddingProgress({ serverId: server.id }),
+    queryFn: async () => await getEmbeddingProgressAction(server.id),
     refetchInterval: 2000,
     retry: 3,
     retryDelay: 1000,
@@ -215,15 +215,12 @@ export function EmbeddingsManager({ server }: { server: ServerPublic }) {
   const handleSaveConfig = async () => {
     setIsSaving(true);
     try {
-      await saveEmbeddingConfig({
-        serverId: server.id,
-        config: {
-          provider,
-          baseUrl,
-          apiKey: apiKey || undefined,
-          model,
-          dimensions,
-        },
+      await saveEmbeddingConfigAction(server.id, {
+        provider,
+        baseUrl,
+        apiKey: apiKey || undefined,
+        model,
+        dimensions,
       });
       toast.success("Embedding configuration saved");
       refetch();
@@ -255,7 +252,7 @@ export function EmbeddingsManager({ server }: { server: ServerPublic }) {
   const handleStartEmbedding = async () => {
     setIsStarting(true);
     try {
-      await startEmbedding({ serverId: server.id });
+      await startEmbeddingAction(server.id);
       toast.success("Embedding process started");
       refetch();
     } catch (err) {
@@ -272,7 +269,7 @@ export function EmbeddingsManager({ server }: { server: ServerPublic }) {
   const handleStopEmbedding = async () => {
     setIsStopping(true);
     try {
-      await stopEmbedding({ serverId: server.id });
+      await stopEmbeddingAction(server.id);
       toast.success("Embedding process stopped");
       refetch();
     } catch (err) {
@@ -324,11 +321,11 @@ export function EmbeddingsManager({ server }: { server: ServerPublic }) {
     try {
       // Stop any running embedding jobs first
       try {
-        await stopEmbedding({ serverId: server.id });
+        await stopEmbeddingAction(server.id);
       } catch {
         // Ignore errors - job might not be running
       }
-      await clearEmbeddings({ serverId: server.id });
+      await clearEmbeddingsAction(server.id);
       toast.success("Embeddings and vector index cleared");
       refetch();
     } catch (err) {
@@ -344,7 +341,7 @@ export function EmbeddingsManager({ server }: { server: ServerPublic }) {
   const handleToggleAutoEmbeddings = async (checked: boolean) => {
     setIsUpdatingAutoEmbed(true);
     try {
-      await toggleAutoEmbeddings({ serverId: server.id, enabled: checked });
+      await toggleAutoEmbeddingsAction(server.id, checked);
       setAutoEmbeddings(checked);
       toast.success(
         `Auto-generate embeddings ${checked ? "enabled" : "disabled"}`,
@@ -361,7 +358,7 @@ export function EmbeddingsManager({ server }: { server: ServerPublic }) {
   const handleTriggerUserEmbeddings = async () => {
     setIsTriggeringUserEmbeddings(true);
     try {
-      await triggerUserEmbeddingsSync({ serverId: server.id });
+      await triggerUserEmbeddingsSyncAction(server.id);
       toast.success("User taste embeddings sync triggered");
     } catch (err) {
       toast.error(

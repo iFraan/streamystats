@@ -12,7 +12,7 @@ import type { Item } from "@streamystats/database/schema";
 import { tool } from "ai";
 import {
   and,
-  cosineDistance,
+  asc,
   desc,
   eq,
   ilike,
@@ -21,6 +21,8 @@ import {
   sql,
 } from "drizzle-orm";
 import { z } from "zod";
+import { isUnsupportedDimensionsParamError } from "@/lib/ai/embedding-errors";
+import { getItemEmbeddingComparison } from "@/lib/db/embedding-comparison";
 import { getHistoryByFilters } from "@/lib/db/history";
 import {
   findItemsByCharacter,
@@ -126,10 +128,10 @@ async function embedTextForServer({
 
   try {
     if (provider === "ollama") {
-      const res = await fetch(`${normalizeBaseUrl(baseUrl)}/api/embeddings`, {
+      const res = await fetch(`${normalizeBaseUrl(baseUrl)}/api/embed`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, prompt: text }),
+        body: JSON.stringify({ model, input: text }),
       });
 
       if (!res.ok) {
@@ -141,10 +143,9 @@ async function embedTextForServer({
       }
 
       const json = (await res.json()) as {
-        embedding?: number[];
-        embeddings?: number[];
+        embeddings?: number[][];
       };
-      const embedding = json.embedding ?? json.embeddings;
+      const embedding = json.embeddings?.[0];
       if (!Array.isArray(embedding) || embedding.length === 0) {
         return {
           ok: false,
@@ -205,16 +206,36 @@ async function embedTextForServer({
       headers.Authorization = `Bearer ${apiKey}`;
     }
 
-    const body: Record<string, unknown> = { model, input: text };
-    if (typeof dimensions === "number" && dimensions > 0) {
-      body.dimensions = dimensions;
-    }
+    const sendDimensions = typeof dimensions === "number" && dimensions > 0;
+    const body = {
+      model,
+      input: text,
+      ...(sendDimensions ? { dimensions } : {}),
+    };
 
-    const res = await fetch(`${normalizeBaseUrl(baseUrl)}/v1/embeddings`, {
+    const normalized = normalizeBaseUrl(baseUrl);
+    const embeddingsUrl = normalized.endsWith("/v1")
+      ? `${normalized}/embeddings`
+      : `${normalized}/v1/embeddings`;
+    let res = await fetch(embeddingsUrl, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     });
+
+    // Some OpenAI-compatible providers (Mistral, for one) reject the optional
+    // `dimensions` field outright, so retry once without it, as the job server does.
+    if (
+      !res.ok &&
+      sendDimensions &&
+      isUnsupportedDimensionsParamError(await res.text())
+    ) {
+      res = await fetch(embeddingsUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model, input: text }),
+      });
+    }
 
     if (!res.ok) {
       return {
@@ -302,7 +323,11 @@ const limitTypeSchema = z.object({
     .describe("Filter by item type"),
 });
 
-export function createChatTools(serverId: number, userId: string) {
+export function createChatTools(
+  serverId: number,
+  userId: string,
+  isAdmin: boolean = false,
+) {
   return {
     getUserMostWatchedMovies: tool({
       description:
@@ -385,7 +410,7 @@ export function createChatTools(serverId: number, userId: string) {
                 .join(", ")})`;
             }
           } else {
-            reason = "Popular on this server";
+            reason = "Matches your taste profile";
           }
 
           return {
@@ -644,12 +669,18 @@ export function createChatTools(serverId: number, userId: string) {
           .default("all")
           .describe("Filter by item type. Defaults to 'all'."),
       }),
-      execute: async ({ startDate, endDate, userId, itemType }) => {
+      execute: async ({
+        startDate,
+        endDate,
+        userId: inputUserId,
+        itemType,
+      }) => {
+        const effectiveUserId = isAdmin ? inputUserId : userId;
         const results = await getUserStatsSummaryForServer({
           serverId,
           startDate,
           endDate,
-          userId,
+          userId: effectiveUserId,
           itemType: itemType || "all",
         });
 
@@ -702,10 +733,17 @@ export function createChatTools(serverId: number, userId: string) {
             "Maximum number of history items to return. Defaults to 50.",
           ),
       }),
-      execute: async ({ userId, itemType, startDate, endDate, limit }) => {
+      execute: async ({
+        userId: inputUserId,
+        itemType,
+        startDate,
+        endDate,
+        limit,
+      }) => {
+        const effectiveUserId = isAdmin ? inputUserId : userId;
         const history = await getHistoryByFilters({
           serverId,
-          userId,
+          userId: effectiveUserId,
           itemType: itemType || "all",
           startDate,
           endDate,
@@ -773,11 +811,16 @@ export function createChatTools(serverId: number, userId: string) {
       inputSchema: z.object({}),
       execute: async () => {
         const allUsers = await getUsers({ serverId });
+        const visibleUsers = isAdmin
+          ? allUsers.filter((u) => !u.isHidden && !u.isDisabled)
+          : allUsers.filter(
+              (u) => u.id === userId && !u.isHidden && !u.isDisabled,
+            );
         return {
-          users: allUsers
-            .filter((u) => !u.isHidden && !u.isDisabled)
-            .map((u) => ({ id: u.id, name: u.name })),
-          message: `Found ${allUsers.length} users`,
+          users: visibleUsers.map((u) => ({ id: u.id, name: u.name })),
+          message: `Found ${visibleUsers.length} user${
+            visibleUsers.length === 1 ? "" : "s"
+          }`,
         };
       },
     }),
@@ -862,7 +905,12 @@ export function createChatTools(serverId: number, userId: string) {
             const sharedGenres = await db
               .select({ genres: items.genres })
               .from(items)
-              .where(inArray(items.id, bothWatched.slice(0, 20)));
+              .where(
+                and(
+                  inArray(items.id, bothWatched.slice(0, 20)),
+                  eq(items.serverId, serverId),
+                ),
+              );
 
             const genreCounts = new Map<string, number>();
             for (const item of sharedGenres) {
@@ -1214,14 +1262,15 @@ export function createChatTools(serverId: number, userId: string) {
           };
         }
 
-        const similarity = sql<number>`1 - (${cosineDistance(
-          items.embedding,
+        const { distance, dimensionFilter } = getItemEmbeddingComparison(
           embed.embedding,
-        )})`;
+        );
+        const similarity = sql<number>`1 - (${distance})`;
 
         const conditions = [
           eq(items.serverId, serverId),
           isNotNull(items.embedding),
+          dimensionFilter,
         ];
         if (type !== "all") {
           conditions.push(eq(items.type, type));
@@ -1236,7 +1285,7 @@ export function createChatTools(serverId: number, userId: string) {
           })
           .from(items)
           .where(and(...conditions))
-          .orderBy(desc(similarity), desc(items.communityRating))
+          .orderBy(asc(distance), desc(items.communityRating))
           .limit(Math.max(limit * 12, 50));
 
         const ranked = candidates

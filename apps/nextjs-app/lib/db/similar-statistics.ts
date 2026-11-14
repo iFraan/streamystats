@@ -2,22 +2,16 @@
 
 import "server-only";
 
-import { db } from "@streamystats/database";
+import { db, type TasteProfileWindow } from "@streamystats/database";
 import {
   hiddenRecommendations,
   type Item,
   items,
 } from "@streamystats/database/schema";
-import {
-  and,
-  cosineDistance,
-  desc,
-  eq,
-  isNotNull,
-  isNull,
-  sql,
-} from "drizzle-orm";
-import { revalidateTag } from "next/cache";
+import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
+
+import { getItemEmbeddingComparison } from "./embedding-comparison";
 import {
   getProfileRecommendations,
   type RecommendationCardItem,
@@ -92,6 +86,7 @@ export async function getSimilarStatistics({
   offset = 0,
   type = "all",
   viewerUserId,
+  timeWindow,
 }: {
   serverId: string | number;
   userId?: string;
@@ -99,6 +94,7 @@ export async function getSimilarStatistics({
   offset?: number;
   type?: "Movie" | "Series" | "all";
   viewerUserId?: string | null;
+  timeWindow?: TasteProfileWindow;
 }): Promise<RecommendationItem[]> {
   const serverIdNum = Number(serverId);
 
@@ -120,6 +116,7 @@ export async function getSimilarStatistics({
       limit,
       offset,
       viewerUserId,
+      timeWindow,
     });
   } catch (error) {
     console.error("Error getting movie recommendations:", error);
@@ -145,6 +142,11 @@ export const getSimilarItemsForItem = async (
   itemId: string,
   limit = 10,
 ): Promise<RecommendationItem[]> => {
+  "use cache";
+  cacheTag("user-analytics");
+  cacheLife("hours");
+  cacheTag(`recommendations-${serverId}`, `recommendations-item-${itemId}`);
+
   try {
     const serverIdNum = Number(serverId);
 
@@ -158,15 +160,15 @@ export const getSimilarItemsForItem = async (
       columns: itemCardWithEmbeddingColumns,
     });
 
-    if (!targetItem || !targetItem.embedding) {
+    if (!targetItem?.embedding) {
       return [];
     }
 
-    // Calculate cosine similarity with other items of the same type
-    const similarity = sql<number>`1 - (${cosineDistance(
-      items.embedding,
+    // Calculate cosine similarity with other items of the same type using indexed expression
+    const { distance, dimensionFilter } = getItemEmbeddingComparison(
       targetItem.embedding,
-    )})`;
+    );
+    const similarity = sql<number>`1 - (${distance})`;
 
     const similarItems = await db
       .select({
@@ -180,11 +182,12 @@ export const getSimilarItemsForItem = async (
           isNull(items.deletedAt),
           eq(items.type, targetItem.type),
           isNotNull(items.embedding),
-          sql`${items.id} != ${itemId}`,
+          dimensionFilter,
+          sql`${items.id} != ${itemId}`, // Exclude the target item itself
         ),
       )
-      .orderBy(desc(similarity))
-      .limit(limit * 2);
+      .orderBy(asc(distance))
+      .limit(limit * 2); // Get more to filter for quality
 
     const qualifiedSimilarItems = similarItems.filter(
       (result) => Number(result.similarity) > 0.4,

@@ -32,7 +32,7 @@ async function getItemPlayedStatus(
 ): Promise<boolean> {
   try {
     const response = await fetch(
-      `${serverUrl}/Users/${userId}/Items/${itemId}`,
+      `${serverUrl}/Items/${itemId}?userId=${encodeURIComponent(userId)}`,
       {
         headers: jellyfinHeaders(token),
         signal: AbortSignal.timeout(5000),
@@ -70,6 +70,7 @@ export default async function ItemDetailsPage({
     redirect("/login");
   }
   const itemDetails = await getItemDetails({
+    serverId: server.id,
     itemId,
     userId: isAdmin ? undefined : me.id,
     viewerUserId,
@@ -99,10 +100,15 @@ export default async function ItemDetailsPage({
     similarItems = await getSimilarItemsForItem(server.id, itemId, 20);
   }
 
-  // Get seasons and episodes for series
+  // A series removed from Jellyfin only has deleted episodes left, which
+  // are still worth listing on its page.
   const seasons =
     itemDetails.item.type === "Series"
-      ? await getSeasonsAndEpisodes({ seriesId: itemId })
+      ? await getSeasonsAndEpisodes({
+          serverId: server.id,
+          seriesId: itemId,
+          includeDeleted: itemDetails.item.deletedAt !== null,
+        })
       : [];
 
   // Get cast and crew for movies and series

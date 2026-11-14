@@ -69,7 +69,7 @@ export async function syncPeopleForServer(
     const candidates = await db
       .select({ id: items.id })
       .from(items)
-      .innerJoin(libraries, eq(items.libraryId, libraries.id))
+      .innerJoin(libraries, and(eq(items.libraryId, libraries.id), eq(items.serverId, libraries.serverId)))
       .where(
         and(
           eq(items.serverId, serverId),
@@ -159,7 +159,7 @@ export async function syncPeopleForServer(
   const remainingCount = await db
     .select({ count: sql<number>`count(*)` })
     .from(items)
-    .innerJoin(libraries, eq(items.libraryId, libraries.id))
+    .innerJoin(libraries, and(eq(items.libraryId, libraries.id), eq(items.serverId, libraries.serverId)))
     .where(
       and(
         eq(items.serverId, serverId),
@@ -273,7 +273,12 @@ async function createClientForServerId(
   serverId: number
 ): Promise<{ client: JellyfinClient; serverName: string }> {
   const serverRows = await db
-    .select({ url: servers.url, apiKey: servers.apiKey, name: servers.name })
+    .select({
+      url: servers.url,
+      internalUrl: servers.internalUrl,
+      apiKey: servers.apiKey,
+      name: servers.name,
+    })
     .from(servers)
     .where(eq(servers.id, serverId))
     .limit(1);

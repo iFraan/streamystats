@@ -21,7 +21,15 @@ import {
 import pMap from "p-map";
 import { sleep } from "../../utils/sleep";
 import { formatSyncLogLine } from "./sync-log";
+import { resolveItemName, UNTITLED_ITEM_NAME } from "./item-name";
 import { formatError } from "../../utils/format-error";
+import {
+  findUnlistedItemIds,
+  recordItemLibrary,
+  removeItemLibrary,
+} from "./item-libraries";
+
+type ItemSyncTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface ItemSyncOptions {
   itemPageSize?: number;
@@ -86,6 +94,7 @@ export async function syncItems(
       const errorMsg = options.libraryId
         ? `Library ${options.libraryId} not found for server ${server.id}`
         : `No libraries found for server ${server.id}`;
+      metrics.incrementErrors();
       const finalMetrics = metrics.finish();
       return createSyncResult<ItemSyncData>(
         "error",
@@ -116,8 +125,14 @@ export async function syncItems(
       })
     );
 
+    // The first library to list each item in this run, and for each library
+    // the items on record for it that it no longer lists
+    const listedIn = new Map<string, string>();
+    const unlistedByLibrary = new Map<string, string[]>();
+
     // Process libraries sequentially to avoid overwhelming Jellyfin / DB
     for (const library of serverLibraries) {
+      const beforeLibraryMetrics = metrics.getCurrentMetrics();
       try {
         console.info(
           formatSyncLogLine("items-sync", {
@@ -135,22 +150,56 @@ export async function syncItems(
           })
         );
 
-        await syncLibraryItems(server, library, client, metrics, {
-          itemPageSize,
-          batchSize,
-          itemConcurrency,
-          apiRequestDelayMs,
-        });
+        const listedItemIds = await syncLibraryItems(
+          server,
+          library,
+          client,
+          metrics,
+          {
+            itemPageSize,
+            batchSize,
+            itemConcurrency,
+            apiRequestDelayMs,
+          }
+        );
         metrics.incrementLibrariesProcessed();
+        const afterLibraryMetrics = metrics.getCurrentMetrics();
+        const libraryErrors =
+          afterLibraryMetrics.errors - beforeLibraryMetrics.errors;
+        if (libraryErrors > 0) {
+          errors.push(
+            `Library ${library.name}: ${libraryErrors} item or page errors`
+          );
+        }
+
+        for (const itemId of listedItemIds) {
+          if (!listedIn.has(itemId)) {
+            listedIn.set(itemId, library.id);
+          }
+        }
+        // A listing cut short by an error says nothing about what is missing
+        if (libraryErrors === 0) {
+          unlistedByLibrary.set(
+            library.id,
+            await findUnlistedItemIds({
+              serverId: server.id,
+              libraryId: library.id,
+              listedItemIds,
+            })
+          );
+        }
 
         console.info(
           formatSyncLogLine("items-sync", {
             server: server.name,
             page: 0,
-            processed: 0,
-            inserted: 0,
-            updated: 0,
-            errors: 0,
+            processed:
+              afterLibraryMetrics.itemsProcessed - beforeLibraryMetrics.itemsProcessed,
+            inserted:
+              afterLibraryMetrics.itemsInserted - beforeLibraryMetrics.itemsInserted,
+            updated:
+              afterLibraryMetrics.itemsUpdated - beforeLibraryMetrics.itemsUpdated,
+            errors: libraryErrors,
             processMs: 0,
             totalProcessed: metrics.getCurrentMetrics().itemsProcessed,
             libraryId: library.id,
@@ -184,6 +233,17 @@ export async function syncItems(
       }
     }
 
+    try {
+      await removeLeftLibraries({
+        serverId: server.id,
+        listedIn,
+        unlistedByLibrary,
+      });
+    } catch (error) {
+      metrics.incrementErrors();
+      errors.push(`Item libraries: ${formatError(error)}`);
+    }
+
     const finalMetrics = metrics.finish();
     const data: ItemSyncData = {
       librariesProcessed: finalMetrics.librariesProcessed,
@@ -200,7 +260,7 @@ export async function syncItems(
         processed: 0,
         inserted: finalMetrics.itemsInserted,
         updated: finalMetrics.itemsUpdated,
-        errors: errors.length,
+        errors: finalMetrics.errors,
         processMs: finalMetrics.duration ?? 0,
         totalProcessed: finalMetrics.itemsProcessed,
         librariesProcessed: finalMetrics.librariesProcessed,
@@ -208,8 +268,14 @@ export async function syncItems(
       })
     );
 
-    if (errors.length > 0) {
-      return createSyncResult("partial", data, finalMetrics, undefined, errors);
+    if (finalMetrics.errors > 0) {
+      return createSyncResult(
+        finalMetrics.itemsProcessed > 0 ? "partial" : "error",
+        data,
+        finalMetrics,
+        errors.join("; "),
+        errors
+      );
     }
 
     return createSyncResult("success", data, finalMetrics);
@@ -228,6 +294,7 @@ export async function syncItems(
         error: error instanceof Error ? error.message : "Unknown error",
       })
     );
+    metrics.incrementErrors();
     const finalMetrics = metrics.finish();
     const errorData: ItemSyncData = {
       librariesProcessed: finalMetrics.librariesProcessed,
@@ -256,10 +323,11 @@ async function syncLibraryItems(
     itemConcurrency: number;
     apiRequestDelayMs: number;
   }
-): Promise<void> {
+): Promise<string[]> {
   let startIndex = 0;
   let hasMoreItems = true;
   let page = 0;
+  const listedItemIds: string[] = [];
 
   while (hasMoreItems) {
     // Add delay between API requests
@@ -291,7 +359,7 @@ async function syncLibraryItems(
         jellyfinItems,
         async (jellyfinItem) => {
           try {
-            await processItem(jellyfinItem, library.id, metrics);
+            await processItem({ jellyfinItem, libraryId: library.id, serverId: server.id, metrics });
           } catch (error) {
             console.error(
               formatSyncLogLine("items-sync", {
@@ -314,6 +382,17 @@ async function syncLibraryItems(
         },
         { concurrency: options.itemConcurrency }
       );
+
+      // An unchanged item is skipped above, and may still be new to this library
+      const pageItemIds = jellyfinItems.map((jellyfinItem) => jellyfinItem.Id);
+      await recordItemLibrary({
+        serverId: server.id,
+        libraryId: library.id,
+        itemIds: pageItemIds,
+      });
+      for (const itemId of pageItemIds) {
+        listedItemIds.push(itemId);
+      }
       const processMs = Date.now() - processStart;
 
       const afterPageMetrics = metrics.getCurrentMetrics();
@@ -368,13 +447,64 @@ async function syncLibraryItems(
       break; // Stop processing this library on API error
     }
   }
+
+  return listedItemIds;
 }
 
-async function processItem(
-  jellyfinItem: JellyfinBaseItemDto,
-  libraryId: string,
-  metrics: SyncMetricsTracker
-): Promise<void> {
+/**
+ * An item that a library no longer lists has left it only if another library
+ * listed it in the same run. One that no library lists is gone from Jellyfin,
+ * and keeps its libraries for as long as its history is kept.
+ */
+async function removeLeftLibraries({
+  serverId,
+  listedIn,
+  unlistedByLibrary,
+}: {
+  serverId: number;
+  listedIn: Map<string, string>;
+  unlistedByLibrary: Map<string, string[]>;
+}): Promise<void> {
+  for (const [libraryId, unlistedItemIds] of unlistedByLibrary) {
+    const leftFor = new Map<string, string[]>();
+    for (const itemId of unlistedItemIds) {
+      const remainingLibraryId = listedIn.get(itemId);
+      if (remainingLibraryId === undefined) {
+        continue;
+      }
+      const itemIds = leftFor.get(remainingLibraryId);
+      if (itemIds) {
+        itemIds.push(itemId);
+      } else {
+        leftFor.set(remainingLibraryId, [itemId]);
+      }
+    }
+
+    for (const [remainingLibraryId, itemIds] of leftFor) {
+      await removeItemLibrary({
+        serverId,
+        libraryId,
+        remainingLibraryId,
+        itemIds,
+      });
+      console.info(
+        `[items-sync] serverId=${serverId} libraryId=${libraryId} removed ${itemIds.length} items that are now only in other libraries`
+      );
+    }
+  }
+}
+
+async function processItem({
+  jellyfinItem,
+  libraryId,
+  serverId,
+  metrics,
+}: {
+  jellyfinItem: JellyfinBaseItemDto;
+  libraryId: string;
+  serverId: number;
+  metrics: SyncMetricsTracker;
+}): Promise<void> {
   // Check if item already exists and compare etag for changes
   const existingItem = await db
     .select({
@@ -385,7 +515,7 @@ async function processItem(
       mediaSourcesSynced: items.mediaSourcesSynced,
     })
     .from(items)
-    .where(eq(items.id, jellyfinItem.Id))
+    .where(and(eq(items.id, jellyfinItem.Id), eq(items.serverId, serverId)))
     .limit(1);
 
   const isNewItem = existingItem.length === 0;
@@ -434,7 +564,6 @@ async function processItem(
     !needsItemTagsUpdate &&
     needsMediaSourcesSync
   ) {
-    const serverId = await getServerIdFromLibrary(libraryId);
     await syncMediaSources(jellyfinItem, serverId);
     metrics.incrementItemsProcessed();
     return;
@@ -452,34 +581,11 @@ async function processItem(
     return; // Skip if item hasn't changed and has no missing metadata to backfill
   }
 
-  const serverId = await getServerIdFromLibrary(libraryId);
-
-  // For truly new items, check for previously deleted items to migrate data from
-  if (isNewItem) {
-    const tempItemData: NewItem = {
-      id: jellyfinItem.Id,
-      serverId,
-      libraryId,
-      name: jellyfinItem.Name,
-      type: jellyfinItem.Type,
-      seriesId: jellyfinItem.SeriesId || null,
-      seriesName: jellyfinItem.SeriesName || null,
-      productionYear: jellyfinItem.ProductionYear || null,
-      indexNumber: jellyfinItem.IndexNumber || null,
-      parentIndexNumber: jellyfinItem.ParentIndexNumber || null,
-      providerIds: jellyfinItem.ProviderIds || null,
-      isFolder: jellyfinItem.IsFolder || false,
-      rawData: jellyfinItem,
-      updatedAt: new Date(),
-    };
-    await checkAndMigrateDeletedItem(tempItemData);
-  }
-
   const itemData: NewItem = {
     id: jellyfinItem.Id,
     serverId,
     libraryId,
-    name: jellyfinItem.Name,
+    name: resolveItemName(jellyfinItem),
     type: jellyfinItem.Type,
     originalTitle: jellyfinItem.OriginalTitle || null,
     etag: jellyfinItem.Etag || null,
@@ -542,22 +648,30 @@ async function processItem(
   // Reset sync flags when item content has changed (etag change or restored from deletion)
   const shouldResync = hasChanged || wasDeleted;
 
-  await db
-    .insert(items)
-    .values(itemData)
-    .onConflictDoUpdate({
-      target: items.id,
-      set: {
-        ...itemData,
-        deletedAt: null, // Clear deletion flag if item is back
-        updatedAt: new Date(),
-        ...(shouldResync && {
-          peopleSynced: false,
-          mediaSourcesSynced: false,
-          processed: false,
-        }),
-      },
-    });
+  // The target must exist before moving FK references, and a failed migration
+  // must roll back the insert so the next sync can retry the replacement.
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(items)
+      .values(itemData)
+      .onConflictDoUpdate({
+        target: [items.serverId, items.id],
+        set: {
+          ...itemData,
+          deletedAt: null, // Clear deletion flag if item is back
+          updatedAt: new Date(),
+          ...(shouldResync && {
+            peopleSynced: false,
+            mediaSourcesSynced: false,
+            processed: false,
+          }),
+        },
+      });
+
+    if (isNewItem) {
+      await checkAndMigrateDeletedItem({ newItem: itemData, tx });
+    }
+  });
 
   // Sync media sources for this item and mark as synced
   await syncMediaSources(jellyfinItem, serverId);
@@ -571,29 +685,6 @@ async function processItem(
   }
 
   metrics.incrementItemsProcessed();
-}
-
-// Cache for server ID lookups
-const serverIdCache = new Map<string, number>();
-
-async function getServerIdFromLibrary(libraryId: string): Promise<number> {
-  if (serverIdCache.has(libraryId)) {
-    return serverIdCache.get(libraryId)!;
-  }
-
-  const library = await db
-    .select({ serverId: libraries.serverId })
-    .from(libraries)
-    .where(eq(libraries.id, libraryId))
-    .limit(1);
-
-  if (library.length === 0) {
-    throw new Error(`Library not found: ${libraryId}`);
-  }
-
-  const [{ serverId }] = library;
-  serverIdCache.set(libraryId, serverId);
-  return serverId;
 }
 
 export async function syncRecentlyAddedItems(
@@ -658,6 +749,7 @@ export async function syncRecentlyAddedItems(
     let allMappedItems: NewItem[] = [];
     let allInvalidItems: Array<{ id: string; error: string }> = [];
     let allJellyfinItemsForMediaSync: JellyfinBaseItemDto[] = [];
+    const listedByLibrary: Array<{ libraryId: string; itemIds: string[] }> = [];
 
     // Collect recent items from all valid libraries with their already-known library IDs
     let page = 0;
@@ -689,6 +781,10 @@ export async function syncRecentlyAddedItems(
         allMappedItems = allMappedItems.concat(validItems);
         allInvalidItems = allInvalidItems.concat(invalidItems);
         allJellyfinItemsForMediaSync = allJellyfinItemsForMediaSync.concat(jellyfinItemsForMediaSync);
+        listedByLibrary.push({
+          libraryId: library.id,
+          itemIds: validItems.map((item) => item.id),
+        });
 
         console.info(
           formatSyncLogLine("recent-items-sync", {
@@ -784,6 +880,10 @@ export async function syncRecentlyAddedItems(
       itemsMigrated,
       sessionsMigrated,
     } = await processValidItems(allMappedItems, allInvalidItems, server.id);
+
+    for (const { libraryId, itemIds } of listedByLibrary) {
+      await recordItemLibrary({ serverId: server.id, libraryId, itemIds });
+    }
 
     // Sync media sources for all processed items
     await syncMediaSourcesBatch(allJellyfinItemsForMediaSync, server.id);
@@ -918,7 +1018,7 @@ function mapJellyfinItem(
     id: jellyfinItem.Id,
     serverId,
     libraryId,
-    name: jellyfinItem.Name,
+    name: resolveItemName(jellyfinItem),
     type: jellyfinItem.Type,
     originalTitle: jellyfinItem.OriginalTitle || null,
     etag: jellyfinItem.Etag || null,
@@ -992,8 +1092,17 @@ async function processValidItems(
   itemsMigrated: number;
   sessionsMigrated: number;
 }> {
+  // An item in several libraries is listed by each of them, and can only be
+  // inserted once. The first listing wins, as it does in the full sync.
+  const uniqueItems = new Map<string, NewItem>();
+  for (const item of validItems) {
+    if (!uniqueItems.has(item.id)) {
+      uniqueItems.set(item.id, item);
+    }
+  }
+
   // Fetch existing item metadata to detect changes and backfill missing tags.
-  const jellyfinIds = validItems.map((item) => item.id);
+  const jellyfinIds = Array.from(uniqueItems.keys());
 
   const existingItems = await db
     .select({ id: items.id, etag: items.etag, tags: items.tags })
@@ -1009,7 +1118,7 @@ async function processValidItems(
   const itemsToUpdate: NewItem[] = [];
   const unchangedItems: NewItem[] = [];
 
-  for (const item of validItems) {
+  for (const item of uniqueItems.values()) {
     const existingItem = existingMap.get(item.id);
 
     if (existingItem === undefined) {
@@ -1059,17 +1168,21 @@ async function processInserts(itemsToInsert: NewItem[]): Promise<{
   try {
     const start = Date.now();
 
-    // Insert all items first (required before migrating sessions due to FK constraints)
-    await db.insert(items).values(itemsToInsert);
+    await db.transaction(async (tx) => {
+      // Keep insertion and history migration atomic in the recent-items path too.
+      await tx.insert(items).values(itemsToInsert);
 
-    // After inserting, check each item for matches with deleted items and migrate data
-    for (const item of itemsToInsert) {
-      const migrationResult = await checkAndMigrateDeletedItem(item);
-      if (migrationResult.migrated) {
-        itemsMigrated++;
-        sessionsMigrated += migrationResult.sessionsMigrated;
+      for (const item of itemsToInsert) {
+        const migrationResult = await checkAndMigrateDeletedItem({
+          newItem: item,
+          tx,
+        });
+        if (migrationResult.migrated) {
+          itemsMigrated++;
+          sessionsMigrated += migrationResult.sessionsMigrated;
+        }
       }
-    }
+    });
 
     console.info(
       formatSyncLogLine("items-sync", {
@@ -1176,7 +1289,13 @@ async function processUpdates(itemsToUpdate: NewItem[]): Promise<number> {
  * Check if a new item matches a previously deleted item and migrate data if so.
  * Returns migration stats.
  */
-async function checkAndMigrateDeletedItem(newItem: NewItem): Promise<{
+async function checkAndMigrateDeletedItem({
+  newItem,
+  tx,
+}: {
+  newItem: NewItem;
+  tx: ItemSyncTransaction;
+}): Promise<{
   migrated: boolean;
   sessionsMigrated: number;
   hiddenRecsMigrated: number;
@@ -1188,7 +1307,7 @@ async function checkAndMigrateDeletedItem(newItem: NewItem): Promise<{
   };
 
   // Find deleted items with matching criteria
-  const deletedMatch = await findDeletedItemMatch(newItem);
+  const deletedMatch = await findDeletedItemMatch({ newItem, tx });
 
   if (!deletedMatch) {
     return result;
@@ -1199,26 +1318,26 @@ async function checkAndMigrateDeletedItem(newItem: NewItem): Promise<{
   );
 
   // Migrate sessions from old item to new item
-  const migratedSessions = await db
+  const migratedSessions = await tx
     .update(sessions)
     .set({ itemId: newItem.id })
-    .where(eq(sessions.itemId, deletedMatch.id))
+    .where(and(eq(sessions.itemId, deletedMatch.id), eq(sessions.serverId, newItem.serverId)))
     .returning({ id: sessions.id });
 
   result.sessionsMigrated = migratedSessions.length;
 
   // Migrate hidden recommendations from old item to new item
-  const migratedRecs = await db
+  const migratedRecs = await tx
     .update(hiddenRecommendations)
     .set({ itemId: newItem.id })
-    .where(eq(hiddenRecommendations.itemId, deletedMatch.id))
+    .where(and(eq(hiddenRecommendations.itemId, deletedMatch.id), eq(hiddenRecommendations.serverId, newItem.serverId)))
     .returning({ id: hiddenRecommendations.id });
 
   result.hiddenRecsMigrated = migratedRecs.length;
   result.migrated = true;
 
   // Hard-delete the old item since all related data has been migrated
-  await db.delete(items).where(eq(items.id, deletedMatch.id));
+  await tx.delete(items).where(and(eq(items.id, deletedMatch.id), eq(items.serverId, newItem.serverId)));
 
   console.info(
     `[items-sync] Migrated ${result.sessionsMigrated} sessions and ${result.hiddenRecsMigrated} hidden recommendations from ${deletedMatch.id} to ${newItem.id}, deleted old item`
@@ -1230,15 +1349,19 @@ async function checkAndMigrateDeletedItem(newItem: NewItem): Promise<{
 /**
  * Find a deleted item that matches the new item by provider IDs or stable attributes
  */
-async function findDeletedItemMatch(
-  newItem: NewItem
-): Promise<{ id: string; matchReason: string } | null> {
+async function findDeletedItemMatch({
+  newItem,
+  tx,
+}: {
+  newItem: NewItem;
+  tx: ItemSyncTransaction;
+}): Promise<{ id: string; matchReason: string } | null> {
   // 1. Try to match by provider IDs first (IMDB, TMDB, etc.) - most reliable
   if (newItem.providerIds && typeof newItem.providerIds === "object") {
     const providerIds = newItem.providerIds as Record<string, string>;
 
     // Get all deleted items for this server that have provider IDs
-    const deletedItemsWithProviders = await db
+    const deletedItemsWithProviders = await tx
       .select({ id: items.id, providerIds: items.providerIds })
       .from(items)
       .where(
@@ -1284,7 +1407,7 @@ async function findDeletedItemMatch(
   ) {
     // Try with production year first if available
     if (newItem.productionYear) {
-      const deletedEpisode = await db
+      const deletedEpisode = await tx
         .select({ id: items.id })
         .from(items)
         .where(
@@ -1309,7 +1432,7 @@ async function findDeletedItemMatch(
     }
 
     // Fallback: search without production year
-    const deletedEpisodeNoYear = await db
+    const deletedEpisodeNoYear = await tx
       .select({ id: items.id })
       .from(items)
       .where(
@@ -1336,7 +1459,7 @@ async function findDeletedItemMatch(
   if (newItem.type === "Season" && newItem.seriesName && indexNum != null) {
     // Try with production year first if available
     if (newItem.productionYear) {
-      const deletedSeason = await db
+      const deletedSeason = await tx
         .select({ id: items.id })
         .from(items)
         .where(
@@ -1360,7 +1483,7 @@ async function findDeletedItemMatch(
     }
 
     // Fallback: search without production year
-    const deletedSeasonNoYear = await db
+    const deletedSeasonNoYear = await tx
       .select({ id: items.id })
       .from(items)
       .where(
@@ -1382,9 +1505,15 @@ async function findDeletedItemMatch(
     }
   }
 
-  // Series: name + type + production_year
-  if (newItem.type === "Series" && newItem.name && newItem.productionYear) {
-    const deletedSeries = await db
+  // Series: name + type + production_year. The fallback name says nothing about
+  // which series it is, so it must not pull in another series' history.
+  if (
+    newItem.type === "Series" &&
+    newItem.name &&
+    newItem.name !== UNTITLED_ITEM_NAME &&
+    newItem.productionYear
+  ) {
+    const deletedSeries = await tx
       .select({ id: items.id })
       .from(items)
       .where(
@@ -1423,7 +1552,7 @@ async function syncMediaSources(
     await db
       .update(items)
       .set({ mediaSourcesSynced: true })
-      .where(eq(items.id, jellyfinItem.Id));
+      .where(and(eq(items.id, jellyfinItem.Id), eq(items.serverId, serverId)));
     return;
   }
 
@@ -1445,7 +1574,7 @@ async function syncMediaSources(
     await db
       .update(items)
       .set({ mediaSourcesSynced: true })
-      .where(eq(items.id, jellyfinItem.Id));
+      .where(and(eq(items.id, jellyfinItem.Id), eq(items.serverId, serverId)));
     return;
   }
 
@@ -1454,8 +1583,9 @@ async function syncMediaSources(
       .insert(mediaSources)
       .values(mediaSourceRecords)
       .onConflictDoUpdate({
-        target: mediaSources.id,
+        target: [mediaSources.serverId, mediaSources.id],
         set: {
+          itemId: sql`EXCLUDED.item_id`,
           size: sql`EXCLUDED.size`,
           bitrate: sql`EXCLUDED.bitrate`,
           container: sql`EXCLUDED.container`,
@@ -1471,7 +1601,7 @@ async function syncMediaSources(
     await db
       .update(items)
       .set({ mediaSourcesSynced: true })
-      .where(eq(items.id, jellyfinItem.Id));
+      .where(and(eq(items.id, jellyfinItem.Id), eq(items.serverId, serverId)));
   } catch (error) {
     console.error(
       `[items-sync] Error syncing media sources for item ${jellyfinItem.Id}: ${
@@ -1492,7 +1622,7 @@ async function syncMediaSourcesBatch(
     return;
   }
 
-  const allMediaSourceRecords: NewMediaSource[] = [];
+  const mediaSourceMap = new Map<string, NewMediaSource>();
   const allItemIds = jellyfinItems.map((item) => item.Id);
 
   for (const jellyfinItem of jellyfinItems) {
@@ -1504,8 +1634,9 @@ async function syncMediaSourcesBatch(
 
     for (let index = 0; index < jellyfinMediaSources.length; index++) {
       const ms = jellyfinMediaSources[index] as Record<string, unknown>;
-      allMediaSourceRecords.push({
-        id: (ms.Id as string) || `${jellyfinItem.Id}-${index}`,
+      const id = (ms.Id as string) || `${jellyfinItem.Id}-${index}`;
+      mediaSourceMap.set(id, {
+        id,
         itemId: jellyfinItem.Id,
         serverId,
         size: typeof ms.Size === "number" ? ms.Size : null,
@@ -1519,6 +1650,8 @@ async function syncMediaSourcesBatch(
     }
   }
 
+  const allMediaSourceRecords = Array.from(mediaSourceMap.values());
+
   try {
     // Insert media sources in batches of 500 to avoid query size limits
     if (allMediaSourceRecords.length > 0) {
@@ -1529,8 +1662,9 @@ async function syncMediaSourcesBatch(
           .insert(mediaSources)
           .values(batch)
           .onConflictDoUpdate({
-            target: mediaSources.id,
+            target: [mediaSources.serverId, mediaSources.id],
             set: {
+              itemId: sql`EXCLUDED.item_id`,
               size: sql`EXCLUDED.size`,
               bitrate: sql`EXCLUDED.bitrate`,
               container: sql`EXCLUDED.container`,
@@ -1548,7 +1682,7 @@ async function syncMediaSourcesBatch(
     await db
       .update(items)
       .set({ mediaSourcesSynced: true })
-      .where(inArray(items.id, allItemIds));
+      .where(and(inArray(items.id, allItemIds), eq(items.serverId, serverId)));
   } catch (error) {
     console.error(
       `[items-sync] Error syncing media sources batch: ${

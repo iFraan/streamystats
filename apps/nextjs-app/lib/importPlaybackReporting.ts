@@ -8,7 +8,8 @@ import {
   sessions,
   users,
 } from "@streamystats/database/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { requireAdmin } from "./api-auth";
 import {
   parseDotNetTimestamp,
   parseEpisodeInfo,
@@ -262,6 +263,14 @@ export async function importFromPlaybackReporting(
       };
     }
 
+    const { error: authError } = await requireAdmin(serverIdNum);
+    if (authError) {
+      return {
+        type: "error",
+        message: "Admin privileges required",
+      };
+    }
+
     const text = await file.text();
     let data: PlaybackReportingData[];
 
@@ -400,7 +409,9 @@ async function importPlaybackReportingSession(
       const existingItem = await db
         .select({ id: items.id })
         .from(items)
-        .where(eq(items.id, playbackData.itemId))
+        .where(
+          and(eq(items.id, playbackData.itemId), eq(items.serverId, serverId)),
+        )
         .limit(1);
 
       if (existingItem.length === 0) {

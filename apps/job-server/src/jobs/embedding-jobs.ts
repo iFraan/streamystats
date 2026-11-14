@@ -12,6 +12,7 @@ import OpenAI from "openai";
 import type { PgBossJob } from "../types/job-status";
 import { sleep } from "../utils/sleep";
 import { TIMEOUT_CONFIG } from "./config";
+import { isUnsupportedDimensionsParamError } from "./embedding-errors";
 import { logJobResult } from "./job-logger";
 import { toPgVectorLiteral } from "@streamystats/database/vector";
 
@@ -93,18 +94,6 @@ function getErrorMessage(error: unknown): string {
   } catch {
     return sanitizeErrorMessage(String(error));
   }
-}
-
-function isUnsupportedDimensionsParamError(error: unknown): boolean {
-  const msg = getErrorMessage(error).toLowerCase();
-  return (
-    (msg.includes("dimension") || msg.includes("dimensions")) &&
-    (msg.includes("unknown") ||
-      msg.includes("unsupported") ||
-      msg.includes("unrecognized") ||
-      msg.includes("invalid") ||
-      msg.includes("unexpected"))
-  );
 }
 
 function getHttpStatus(error: unknown): number | null {
@@ -223,20 +212,36 @@ async function ensureEmbeddingIndex(dimensions: number): Promise<void> {
     const existingIndex = await db.execute<{
       indexname: string;
       indexdef: string;
+      indisvalid: boolean;
     }>(sql`
-      SELECT indexname, indexdef FROM pg_indexes
-      WHERE tablename = 'items' AND indexname = 'items_embedding_idx'
+      SELECT i.relname AS indexname, pg_get_indexdef(i.oid) AS indexdef, ix.indisvalid
+      FROM pg_class i
+      JOIN pg_index ix ON i.oid = ix.indexrelid
+      JOIN pg_class t ON t.oid = ix.indrelid
+      WHERE t.relname = 'items' AND i.relname = 'items_embedding_idx'
     `);
 
     if (existingIndex.length > 0) {
-      const indexDef = existingIndex[0].indexdef;
+      const { indexdef: indexDef, indisvalid: isValid } = existingIndex[0];
       const dimensionMatch = indexDef.match(/vector\((\d+)\)/);
-      if (dimensionMatch && parseInt(dimensionMatch[1]) === dimensions) {
+      const hasPartialPredicate = indexDef.includes("vector_dims");
+      if (
+        isValid &&
+        dimensionMatch &&
+        parseInt(dimensionMatch[1]) === dimensions &&
+        hasPartialPredicate
+      ) {
         indexEnsuredForDimension.add(dimensions);
         return;
       }
       console.info(
-        `[embeddings-index] dimensions=${dimensions} action=dropExisting reason=dimensionMismatch`
+        `[embeddings-index] dimensions=${dimensions} action=dropExisting reason=${
+          !isValid
+            ? "invalidIndex"
+            : !hasPartialPredicate
+              ? "missingPartialPredicate"
+              : "dimensionMismatch"
+        }`
       );
       await db.execute(sql`DROP INDEX IF EXISTS items_embedding_idx`);
     }
@@ -248,6 +253,7 @@ async function ensureEmbeddingIndex(dimensions: number): Promise<void> {
       CREATE INDEX CONCURRENTLY IF NOT EXISTS items_embedding_idx
       ON items
       USING hnsw ((embedding::vector(${sql.raw(String(dimensions))})) vector_cosine_ops)
+      WHERE embedding IS NOT NULL AND vector_dims(embedding) = ${sql.raw(String(dimensions))}
     `);
     indexEnsuredForDimension.add(dimensions);
   } catch (error) {
@@ -308,7 +314,7 @@ async function prepareTextForEmbedding(item: Item, serverId: number): Promise<st
           eq(itemPeople.serverId, people.serverId)
         )
       )
-      .where(eq(itemPeople.itemId, item.id))
+      .where(and(eq(itemPeople.itemId, item.id), eq(itemPeople.serverId, item.serverId)))
       .orderBy(itemPeople.sortOrder);
 
     if (itemPeopleData.length > 0) {
@@ -365,7 +371,7 @@ async function processOpenAIBatch(
     await db
       .update(items)
       .set({ processed: true })
-      .where(eq(items.id, item.id));
+      .where(and(eq(items.id, item.id), eq(items.serverId, item.serverId)));
     skipped++;
   }
 
@@ -422,7 +428,7 @@ async function processOpenAIBatch(
       await db
         .update(items)
         .set({ embedding: sql`${vectorLiteral}::vector`, processed: true })
-        .where(eq(items.id, item.id));
+        .where(and(eq(items.id, item.id), eq(items.serverId, item.serverId)));
       processed++;
     } catch (err) {
       if (!firstDbWriteError) {
@@ -456,7 +462,7 @@ async function processOllamaItem(
     await db
       .update(items)
       .set({ processed: true })
-      .where(eq(items.id, item.id));
+      .where(and(eq(items.id, item.id), eq(items.serverId, item.serverId)));
     return { processed: 0, skipped: 1, errors: 0 };
   }
 
@@ -489,7 +495,7 @@ async function processOllamaItem(
   await db
     .update(items)
     .set({ embedding: sql`${toPgVectorLiteral(embedding)}::vector`, processed: true })
-    .where(eq(items.id, item.id));
+    .where(and(eq(items.id, item.id), eq(items.serverId, item.serverId)));
   return { processed: 1, skipped: 0, errors: 0 };
 }
 
@@ -524,7 +530,7 @@ async function processVoyageBatch(
     await db
       .update(items)
       .set({ processed: true })
-      .where(eq(items.id, item.id));
+      .where(and(eq(items.id, item.id), eq(items.serverId, item.serverId)));
     skipped++;
   }
 
@@ -584,7 +590,7 @@ async function processVoyageBatch(
       await db
         .update(items)
         .set({ embedding: sql`${vectorLiteral}::vector`, processed: true })
-        .where(eq(items.id, item.id));
+        .where(and(eq(items.id, item.id), eq(items.serverId, item.serverId)));
       processed++;
     } catch (err) {
       if (!firstDbWriteError) {
@@ -634,7 +640,7 @@ async function processGeminiBatch(
     await db
       .update(items)
       .set({ processed: true })
-      .where(eq(items.id, item.id));
+      .where(and(eq(items.id, item.id), eq(items.serverId, item.serverId)));
     skipped++;
   }
 
@@ -695,7 +701,7 @@ async function processGeminiBatch(
       await db
         .update(items)
         .set({ embedding: sql`${vectorLiteral}::vector`, processed: true })
-        .where(eq(items.id, item.id));
+        .where(and(eq(items.id, item.id), eq(items.serverId, item.serverId)));
       processed++;
     } catch (err) {
       if (!firstDbWriteError) {
@@ -1139,9 +1145,17 @@ export async function generateItemEmbeddingsJob(
     if (!stopped && totalProcessed > 0) {
       try {
         const nextjsUrl = process.env.NEXTJS_URL || "http://localhost:3000";
-        await axios.post(`${nextjsUrl}/api/revalidate-recommendations`, {
-          serverId,
-        });
+        const internalKey =
+          process.env.INTERNAL_API_KEY || process.env.SESSION_SECRET;
+        await axios.post(
+          `${nextjsUrl}/api/revalidate-recommendations`,
+          {
+            serverId,
+          },
+          {
+            headers: internalKey ? { "x-internal-key": internalKey } : {},
+          }
+        );
         console.info(
           `[embeddings] server=${serverName} serverId=${serverId} action=revalidatedCache`
         );

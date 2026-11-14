@@ -1,20 +1,21 @@
-"use server";
-
 import "server-only";
 
 import type { Server } from "@streamystats/database";
-import { db, servers, users } from "@streamystats/database";
+import {
+  db,
+  getMergedUserTarget,
+  servers,
+  users,
+} from "@streamystats/database";
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
-import { jellyfinHeaders } from "./jellyfin-auth";
+import { isServerApiKey, jellyfinHeaders } from "./jellyfin-auth";
 import { getInternalUrl } from "./server-url";
 import { getSession, type SessionUser } from "./session";
 
 /**
  * Identity surfaced when a request authenticates with a Jellyfin server
- * API key rather than a user access token. Centralised so the
- * MediaBrowser path here and `getUserFromEmbyToken` in `jellyfin-auth.ts`
- * stay in sync.
+ * API key rather than a user access token.
  */
 const SYSTEM_API_KEY_USER_ID = "system-api-key";
 const SYSTEM_API_KEY_USER_NAME = "System API Key";
@@ -61,12 +62,13 @@ function parseMediaBrowserHeader(authHeader: string): {
  * `/Users/AuthenticateByName`) and Jellyfin server API keys. User
  * tokens are validated via `/Users/Me`. A server API key has no user
  * context, so `/Users/Me` rejects it (the exact status varies by
- * Jellyfin version); any non-OK response therefore falls back to a
- * `/System/Info` check and, on success, surfaces the caller as the
- * admin "system-api-key" pseudo-user — matching the pattern already
- * used by `getUserFromEmbyToken` in `jellyfin-auth.ts`. A valid user
- * token always returns 200 here, so the fallback never runs for real
- * users.
+ * Jellyfin version); any non-OK response therefore falls back to
+ * `isServerApiKey` and, when the token is one of the server's API keys,
+ * surfaces the caller as the admin "system-api-key" pseudo-user.
+ *
+ * `/Users/Me` can fail for a real user too, outside their parental
+ * access schedule or on a server error, so the fallback must only ever
+ * accept an API key: a user token that got through it would be an admin.
  */
 export async function validateJellyfinToken(
   serverUrl: string,
@@ -95,7 +97,7 @@ export async function validateJellyfinToken(
     if (error instanceof Error && error.name === "AbortError") {
       return null;
     }
-    // A network error on /Users/Me may still leave /System/Info
+    // A network error on /Users/Me may still leave /Auth/Keys
     // reachable for a valid API key; try the fallback before failing.
     return await validateAsApiKey(serverUrl, token);
   }
@@ -105,23 +107,60 @@ async function validateAsApiKey(
   serverUrl: string,
   token: string,
 ): Promise<{ userId: string; userName: string; isAdmin: boolean } | null> {
-  try {
-    const sysRes = await fetch(`${serverUrl}/System/Info`, {
-      method: "GET",
-      headers: jellyfinHeaders(token),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (sysRes.ok) {
-      return {
-        userId: SYSTEM_API_KEY_USER_ID,
-        userName: SYSTEM_API_KEY_USER_NAME,
-        isAdmin: true,
-      };
-    }
-    return null;
-  } catch {
+  if (!(await isServerApiKey({ serverUrl, token }))) return null;
+
+  return {
+    userId: SYSTEM_API_KEY_USER_ID,
+    userName: SYSTEM_API_KEY_USER_NAME,
+    isAdmin: true,
+  };
+}
+
+function getMediaBrowserToken(request: NextRequest): string | null {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader) {
     return null;
   }
+
+  return parseMediaBrowserHeader(authHeader)?.token || null;
+}
+
+/**
+ * Validates a token against one server and builds the session it stands for.
+ * Always goes through the server's internal URL: the public one may not be
+ * reachable from where Streamystats runs.
+ * Returns "merged" when the token is valid but its account was merged away.
+ */
+async function getSessionForToken({
+  server,
+  token,
+}: {
+  server: Server;
+  token: string;
+}): Promise<SessionUser | "merged" | null> {
+  const userInfo = await validateJellyfinToken(getInternalUrl(server), token);
+  if (!userInfo) {
+    return null;
+  }
+
+  if (
+    await getMergedUserTarget({
+      serverId: server.id,
+      userId: userInfo.userId,
+    })
+  )
+    return "merged";
+  // Check if this user exists in our database for this server
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.id, userInfo.userId),
+  });
+
+  return {
+    id: userInfo.userId,
+    name: userInfo.userName,
+    serverId: server.id,
+    isAdmin: userInfo.isAdmin || dbUser?.isAdministrator || false,
+  };
 }
 
 /**
@@ -132,13 +171,8 @@ async function validateAsApiKey(
 export async function authenticateMediaBrowser(
   request: NextRequest,
 ): Promise<{ session: SessionUser; server: Server } | null> {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader) {
-    return null;
-  }
-
-  const parsed = parseMediaBrowserHeader(authHeader);
-  if (!parsed?.token) {
+  const token = getMediaBrowserToken(request);
+  if (!token) {
     return null;
   }
 
@@ -146,34 +180,41 @@ export async function authenticateMediaBrowser(
   const allServers = await db.select().from(servers);
 
   for (const server of allServers) {
-    const userInfo = await validateJellyfinToken(
-      getInternalUrl(server),
-      parsed.token,
-    );
-    if (userInfo) {
-      // Check if this user exists in our database for this server
-      const dbUser = await db.query.users.findFirst({
-        where: eq(users.id, userInfo.userId),
-      });
-
-      return {
-        session: {
-          id: userInfo.userId,
-          name: userInfo.userName,
-          serverId: server.id,
-          isAdmin: userInfo.isAdmin || dbUser?.isAdministrator || false,
-        },
-        server,
-      };
-    }
+    const session = await getSessionForToken({ server, token });
+    if (session === "merged") return null;
+    if (session) return { session, server };
   }
 
   return null;
 }
 
 /**
+ * Authenticate using MediaBrowser token header against one server
+ * For routes that name their server in the request, so the token only
+ * has to be valid there
+ */
+export async function authenticateMediaBrowserForServer({
+  request,
+  server,
+}: {
+  request: NextRequest;
+  server: Server;
+}): Promise<SessionUser | null> {
+  const token = getMediaBrowserToken(request);
+  if (!token) {
+    return null;
+  }
+
+  const session = await getSessionForToken({ server, token });
+  return session === "merged" ? null : session;
+}
+
+/**
  * Validates API key from Authorization header against the actual Jellyfin server
  * Expected format: "Bearer <api-key>" or just "<api-key>"
+ *
+ * The routes behind this return every user's data, so the key must be one
+ * of the server's API keys or an administrator's access token.
  */
 export async function validateApiKey({
   request,
@@ -198,9 +239,10 @@ export async function validateApiKey({
 
   try {
     // Validate the API key by making a request to the Jellyfin server
-    // Use /Users/Me endpoint which requires valid authentication
+    // Use /Auth/Keys, which only answers API keys and administrators. An
+    // endpoint like /System/Info answers any signed-in user.
     try {
-      const response = await fetch(`${getInternalUrl(server)}/System/Info`, {
+      const response = await fetch(`${getInternalUrl(server)}/Auth/Keys`, {
         method: "GET",
         headers: jellyfinHeaders(apiKey),
         signal: AbortSignal.timeout(5000),
@@ -211,8 +253,8 @@ export async function validateApiKey({
         return true;
       }
 
-      // If we get 401, the API key is invalid
-      if (response.status === 401) {
+      // If we get 401 or 403, the API key is invalid or not an admin's
+      if (response.status === 401 || response.status === 403) {
         console.warn(
           `Invalid API key for server ${server.name} (${server.url})`,
         );
@@ -283,11 +325,41 @@ export async function requireApiKey({
   return null;
 }
 
+function getServerAccessError({
+  sessionServerId,
+  expectedServerId,
+}: {
+  sessionServerId: number;
+  expectedServerId?: number | string;
+}): Response | null {
+  if (expectedServerId === undefined) return null;
+
+  // Accept only decimal IDs so Number() and downstream parseInt() agree.
+  const isDecimalId =
+    typeof expectedServerId === "number" ||
+    (typeof expectedServerId === "string" && /^\d+$/.test(expectedServerId));
+  const expectedId = isDecimalId ? Number(expectedServerId) : NaN;
+  if (
+    Number.isSafeInteger(expectedId) &&
+    expectedId > 0 &&
+    sessionServerId === expectedId
+  ) {
+    return null;
+  }
+
+  return Response.json(
+    { error: "Forbidden", message: "Access denied for this server." },
+    { status: 403 },
+  );
+}
+
 /**
  * Requires a valid signed session cookie for API routes.
  * Returns null if valid, Response object with 401 if invalid.
  */
-export async function requireSession(): Promise<
+export async function requireSession(
+  expectedServerId?: number | string,
+): Promise<
   | {
       error: Response;
       session: null;
@@ -317,6 +389,12 @@ export async function requireSession(): Promise<
     };
   }
 
+  const error = getServerAccessError({
+    sessionServerId: session.serverId,
+    expectedServerId,
+  });
+  if (error) return { error, session: null };
+
   return { error: null, session };
 }
 
@@ -327,7 +405,10 @@ export async function requireSession(): Promise<
  *
  * Use this for API endpoints that should support external access.
  */
-export async function requireAuth(request: NextRequest): Promise<
+export async function requireAuth(
+  request: NextRequest,
+  expectedServerId?: number | string,
+): Promise<
   | {
       error: Response;
       session: null;
@@ -337,42 +418,53 @@ export async function requireAuth(request: NextRequest): Promise<
       session: SessionUser;
     }
 > {
+  let sessionUser: SessionUser | null = null;
+
   // Try session cookie first (web app)
   const session = await getSession();
   if (session) {
-    return { error: null, session };
+    sessionUser = session;
+  } else {
+    // Try MediaBrowser token (external API clients)
+    const mediaBrowserAuth = await authenticateMediaBrowser(request);
+    if (mediaBrowserAuth) {
+      sessionUser = mediaBrowserAuth.session;
+    }
   }
 
-  // Try MediaBrowser token (external API clients)
-  const mediaBrowserAuth = await authenticateMediaBrowser(request);
-  if (mediaBrowserAuth) {
-    return { error: null, session: mediaBrowserAuth.session };
-  }
-
-  // No valid authentication found
-  return {
-    error: new Response(
-      JSON.stringify({
-        error: "Unauthorized",
-        message:
-          'Valid authentication required. Use session cookie or Authorization: MediaBrowser Token="..." header.',
-      }),
-      {
-        status: 401,
-        headers: {
-          "Content-Type": "application/json",
+  if (!sessionUser) {
+    return {
+      error: new Response(
+        JSON.stringify({
+          error: "Unauthorized",
+          message:
+            'Valid authentication required. Use session cookie or Authorization: MediaBrowser Token="..." header.',
+        }),
+        {
+          status: 401,
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-      },
-    ),
-    session: null,
-  };
+      ),
+      session: null,
+    };
+  }
+
+  const error = getServerAccessError({
+    sessionServerId: sessionUser.serverId,
+    expectedServerId,
+  });
+  if (error) return { error, session: null };
+
+  return { error: null, session: sessionUser };
 }
 
 /**
  * Requires the user to be an admin based on the signed session.
  * Returns null if valid admin, Response object if unauthorized.
  */
-export async function requireAdmin(): Promise<
+export async function requireAdmin(expectedServerId?: number | string): Promise<
   | {
       error: Response;
       session: null;
@@ -382,7 +474,7 @@ export async function requireAdmin(): Promise<
       session: SessionUser;
     }
 > {
-  const result = await requireSession();
+  const result = await requireSession(expectedServerId);
 
   if (result.error) {
     return result;

@@ -1,9 +1,6 @@
-import type { Server } from "@streamystats/database";
+import { getMergedUserTarget, type Server } from "@streamystats/database";
 import type { NextRequest } from "next/server";
-import {
-  authenticateMediaBrowser,
-  validateJellyfinToken,
-} from "@/lib/api-auth";
+import { authenticateMediaBrowserForServer } from "@/lib/api-auth";
 import {
   hasServerIdentifier,
   parseServerIdentifier,
@@ -15,6 +12,7 @@ import {
   type RecommendationItem,
 } from "@/lib/db/similar-statistics";
 import { authenticateByName } from "@/lib/jellyfin-auth";
+import { getInternalUrl } from "@/lib/server-url";
 
 type RecommendationType = "Movie" | "Series" | "all";
 type RangePreset = "7d" | "30d" | "90d" | "thisMonth" | "all";
@@ -131,8 +129,9 @@ function getRecommendationReason(args: {
   };
 }): string {
   const { recommendation } = args;
+  // Taste-profile recommendations come from all of the history, not single items.
   if (!recommendation.basedOn || recommendation.basedOn.length === 0) {
-    return "Popular on this server";
+    return "Matches your taste profile";
   }
 
   const baseNames = recommendation.basedOn.slice(0, 3).map((b) => b.name);
@@ -271,7 +270,7 @@ async function buildRecommendationsResponse(args: {
   params: Omit<ResolvedParams, "serverId" | "serverName">;
   timeWindow: { start?: Date; end?: Date };
 }) {
-  const { server, user, viewerUserId, params } = args;
+  const { server, user, viewerUserId, params, timeWindow } = args;
 
   const fetchLimit = Math.min(200, Math.max(params.limit * 4, params.limit));
 
@@ -286,17 +285,19 @@ async function buildRecommendationsResponse(args: {
       limit: fetchLimit,
       type: "Movie",
       viewerUserId,
+      timeWindow,
     });
   }
 
   if (params.type === "Series" || params.type === "all") {
-    seriesResults = (await getSimilarStatistics({
+    seriesResults = await getSimilarStatistics({
       serverId: server.id,
       userId: user.id,
       limit: fetchLimit,
       type: "Series",
       viewerUserId,
-    })) as RecommendationItem[];
+      timeWindow,
+    });
   }
 
   // Combine and sort by similarity (both types have compatible structure)
@@ -381,8 +382,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Try MediaBrowser auth (Authorization: MediaBrowser Token="...")
-  const mediaBrowserAuth = await authenticateMediaBrowser(request);
-  if (!mediaBrowserAuth) {
+  const session = await authenticateMediaBrowserForServer({ request, server });
+  if (!session) {
     return jsonResponse(
       {
         error: "Unauthorized",
@@ -393,60 +394,21 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Verify the authenticated server matches the requested server
-  if (mediaBrowserAuth.server.id !== server.id) {
-    // Token is valid but for a different server - try validating against requested server
-    const authHeader = request.headers.get("authorization");
-    const tokenMatch = authHeader?.match(/Token="([^"]*)"/i);
-    const token = tokenMatch?.[1];
-
-    if (token) {
-      const userInfo = await validateJellyfinToken(server.url, token);
-      if (userInfo) {
-        let targetUser: ApiUser = {
-          id: userInfo.userId,
-          name: userInfo.userName,
-        };
-        if (userInfo.isAdmin && parsed.targetUserId) {
-          targetUser = { id: parsed.targetUserId, name: null };
-        }
-        const payload = await buildRecommendationsResponse({
-          server,
-          user: targetUser,
-          viewerUserId: userInfo.isAdmin ? null : userInfo.userId,
-          params: parsed.params,
-          timeWindow: parsed.timeWindow,
-        });
-        return jsonResponse(payload, 200);
-      }
-    }
-
-    return jsonResponse(
-      {
-        error: "Unauthorized",
-        message: "Token is not valid for the requested server.",
-      },
-      401,
-    );
-  }
-
   // DEFAULT: Use the authenticated user
   let targetUser: ApiUser = {
-    id: mediaBrowserAuth.session.id,
-    name: mediaBrowserAuth.session.name,
+    id: session.id,
+    name: session.name,
   };
 
   // OVERRIDE: If Admin, allow fetching for another user
-  if (mediaBrowserAuth.session.isAdmin && parsed.targetUserId) {
+  if (session.isAdmin && parsed.targetUserId) {
     targetUser = { id: parsed.targetUserId, name: null };
   }
 
   const payload = await buildRecommendationsResponse({
     server,
     user: targetUser,
-    viewerUserId: mediaBrowserAuth.session.isAdmin
-      ? null
-      : mediaBrowserAuth.session.id,
+    viewerUserId: session.isAdmin ? null : session.id,
     params: parsed.params,
     timeWindow: parsed.timeWindow,
   });
@@ -494,12 +456,18 @@ export async function POST(request: NextRequest) {
   }
 
   const auth = await authenticateByName({
-    serverUrl: server.url,
+    serverUrl: getInternalUrl(server),
     username,
     password,
   });
   if (!auth.ok) {
     return jsonResponse({ error: "Unauthorized", message: auth.error }, 401);
+  }
+
+  if (
+    await getMergedUserTarget({ serverId: server.id, userId: auth.user.id })
+  ) {
+    return jsonResponse({ error: "Account permanently merged" }, 401);
   }
 
   const payload = await buildRecommendationsResponse({
