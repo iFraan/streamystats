@@ -8,6 +8,17 @@ import {
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "./api-auth";
+import { triggerUserEmbeddingsSync } from "./db/server";
+
+// The merge has already committed and deleted both taste profiles, so a job
+// server outage must not report it as failed; the daily schedule rebuilds them.
+async function rebuildTasteProfiles(serverId: number): Promise<void> {
+  try {
+    await triggerUserEmbeddingsSync({ serverId });
+  } catch {
+    // triggerUserEmbeddingsSync logs the failure before rethrowing.
+  }
+}
 
 const inputSchema = z
   .object({
@@ -152,6 +163,7 @@ export async function handleUserMerge({
     });
     revalidateTag("user-analytics", { expire: 0 });
     revalidatePath(`/servers/${serverId}`, "layout");
+    await rebuildTasteProfiles(serverId);
     return Response.json(result);
   } catch (error) {
     if (error instanceof UserMergeError)

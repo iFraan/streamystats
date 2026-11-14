@@ -1,7 +1,9 @@
 import {
   db,
+  items,
   servers,
   serverJobConfigurations,
+  userEmbeddings,
   getDefaultCron,
   isCronJob,
   type JobKey,
@@ -161,6 +163,8 @@ class SyncScheduler {
       console.log("[scheduler] trigger=startup-full-sync");
       await this.triggerFullSync();
     }
+
+    await this.triggerMissingUserEmbeddings();
 
     this.enabled = true;
 
@@ -530,6 +534,47 @@ class SyncScheduler {
       await boss.send(BACKFILL_JOB_NAMES.BACKFILL_JELLYFIN_IDS, {});
     } catch (error) {
       console.error("[scheduler] trigger=jellyfin-id-backfill status=error", error);
+    }
+  }
+
+  /**
+   * Rebuild taste profiles for servers that have item embeddings but no
+   * profiles. Migrations and embedding resets clear user_embeddings, and
+   * waiting for the daily schedule leaves recommendations empty until then.
+   */
+  private async triggerMissingUserEmbeddings(): Promise<void> {
+    try {
+      const serversMissingProfiles = await db
+        .select({ id: servers.id })
+        .from(servers)
+        .where(
+          and(
+            sql`EXISTS (SELECT 1 FROM ${items} WHERE ${items.serverId} = ${servers.id} AND ${items.embedding} IS NOT NULL)`,
+            sql`NOT EXISTS (SELECT 1 FROM ${userEmbeddings} WHERE ${userEmbeddings.serverId} = ${servers.id})`
+          )
+        );
+
+      if (serversMissingProfiles.length === 0) {
+        console.log(
+          "[scheduler] trigger=user-embeddings-backfill status=skipped reason=profiles-present"
+        );
+        return;
+      }
+
+      for (const server of serversMissingProfiles) {
+        if (!this.isJobEnabledForServer(server.id, "user-embeddings-sync")) {
+          continue;
+        }
+        console.log(
+          `[scheduler] trigger=user-embeddings-backfill serverId=${server.id}`
+        );
+        await this.triggerServerUserEmbeddingsSync(server.id);
+      }
+    } catch (error) {
+      console.error(
+        "[scheduler] trigger=user-embeddings-backfill status=error",
+        error
+      );
     }
   }
 

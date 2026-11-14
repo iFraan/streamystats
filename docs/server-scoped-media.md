@@ -14,29 +14,39 @@ The old `0043` snapshot had the same parent as `0042`; its parent link is repair
 
 ## Verification
 
-### Fork integration through upstream 2.22.1
+### Fork integration through upstream 2.22.3
 
 The `chore/sync-upstream-2.22` integration preserves the fork migration history
 through `0046_overrated_shadowcat`, including its existing timestamps and
 `user_embeddings` table. The upstream SQL files `0045_server_scoped_media_ids`
 and `0046_permanent_user_merge` remain as reference sources, but are not separate
-entries in this fork journal. Their data-preserving SQL is included in the new,
-Drizzle-generated `0047_sync_upstream_2_22` migration, together with the upstream
-performance-index repair. The new snapshot includes both upstream and fork tables.
+entries in this fork journal. Their data-preserving SQL is included in the new
+`0047_sync_upstream_2_22` migration, together with the upstream performance-index
+repair. The new snapshot includes both upstream and fork tables.
+
+Upstream 2.22.2 added `0047_item_libraries`, which collides with the fork's
+`0047`. The fork journals it as `0048_item_libraries` with upstream's SQL and
+original timestamp `1794324661230`, which is later than the fork's `0047`, so it
+runs after the reconciliation on every fork database. Its snapshot was generated
+by Drizzle on top of the fork's `0047` snapshot. Future upstream migrations keep
+this offset: renumber them past the fork's latest entry and keep their timestamps.
 
 This ordering matters: Drizzle selects pending migrations by timestamp, not by
 filename or SQL hash. An installation running `main-rc` may already have
-`0044_lethal_pandemic` recorded at timestamp `1780183104197`; the earlier 2.20
+`0045_lethal_pandemic` recorded at timestamp `1780183104197`; the earlier 2.20
 integration can have `0046_overrated_shadowcat` at `1789868066521`. Applying the
 upstream journal unchanged would skip older upstream work in these databases.
 Do not rename applied migration entries or change their timestamps to compensate.
 
-Migration `0047` clears derived user taste profiles, not playback history. Run
-User Embeddings Sync in Settings > Jobs after Full Sync finishes on every server
-to rebuild recommendations. Account merging also invalidates both affected taste
-profiles; manually run User Embeddings Sync afterward or wait for its configured
-schedule (daily at 03:00 by default). Profile calculations share the account-merge
-advisory lock so an in-flight calculation cannot republish a pre-merge profile.
+Migration `0047` clears derived user taste profiles, not playback history. On
+startup the job server queues User Embeddings Sync for every server that has item
+embeddings but no taste profiles, so recommendations come back without waiting
+for the daily schedule (03:00 by default). Run it again from Settings > Jobs once
+Full Sync and Embeddings Sync finish to include recovered items. Account merging
+also invalidates both affected taste profiles; the merge API queues the rebuild,
+and the daily schedule covers it if the job server is unreachable. Profile
+calculations share the account-merge advisory lock so an in-flight calculation
+cannot republish a pre-merge profile.
 
 Before deploying this fork integration:
 

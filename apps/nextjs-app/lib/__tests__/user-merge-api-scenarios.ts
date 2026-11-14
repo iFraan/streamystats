@@ -3,6 +3,8 @@ import { expect, mock } from "bun:test";
 let role = "admin";
 let mutations = 0;
 let invalidated = false;
+let rebuilds = 0;
+let jobServerDown = false;
 mock.module("@/lib/api-auth", () => ({
   requireAdmin: async (serverId: number) => {
     const status =
@@ -46,6 +48,14 @@ mock.module("@streamystats/database", () => ({
       throw new UserMergeError("Accounts changed", 409);
     mutations++;
     return { targetUserId: "new", transferred: { sessions: 2 } };
+  },
+}));
+mock.module("@/lib/db/server", () => ({
+  triggerUserEmbeddingsSync: async ({ serverId }: { serverId: number }) => {
+    expect(serverId).toBe(1);
+    rebuilds++;
+    if (jobServerDown) throw new Error("job server unreachable");
+    return { success: true };
   },
 }));
 mock.module("next/cache", () => ({
@@ -115,6 +125,7 @@ body = {
 };
 expect((await call()).status).toBe(400);
 expect(mutations).toBe(0);
+expect(rebuilds).toBe(0);
 body = {
   input,
   previewToken: preview.token,
@@ -124,6 +135,12 @@ body = {
 expect((await call()).status).toBe(200);
 expect(mutations).toBe(1);
 expect(invalidated).toBe(true);
+expect(rebuilds).toBe(1);
+// The merge is committed, so an unreachable job server must not fail it.
+jobServerDown = true;
+expect((await call()).status).toBe(200);
+expect(rebuilds).toBe(2);
+jobServerDown = false;
 // A reverse proxy can use the server/admin-bound token; cross-site requests cannot.
 const proxy = {
   url: "http://nextjs:3000/api/servers/1/user-merge",
